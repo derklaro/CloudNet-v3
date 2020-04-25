@@ -3,7 +3,9 @@ package de.dytanic.cloudnet.ext.cloudperms.bungee.listener;
 import de.dytanic.cloudnet.driver.permission.IPermissionUser;
 import de.dytanic.cloudnet.ext.cloudperms.CloudPermissionsHelper;
 import de.dytanic.cloudnet.ext.cloudperms.CloudPermissionsManagement;
+import net.md_5.bungee.api.ChatColor;
 import net.md_5.bungee.api.CommandSender;
+import net.md_5.bungee.api.chat.TextComponent;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.event.LoginEvent;
 import net.md_5.bungee.api.event.PermissionCheckEvent;
@@ -17,7 +19,7 @@ import java.util.UUID;
 
 public final class BungeeCloudNetCloudPermissionsPlayerListener implements Listener {
 
-    private CloudPermissionsManagement permissionsManagement;
+    private final CloudPermissionsManagement permissionsManagement;
 
     public BungeeCloudNetCloudPermissionsPlayerListener(CloudPermissionsManagement permissionsManagement) {
         this.permissionsManagement = permissionsManagement;
@@ -25,7 +27,10 @@ public final class BungeeCloudNetCloudPermissionsPlayerListener implements Liste
 
     @EventHandler
     public void handle(LoginEvent event) {
-        CloudPermissionsHelper.initPermissionUser(this.permissionsManagement, event.getConnection().getUniqueId(), event.getConnection().getName());
+        CloudPermissionsHelper.initPermissionUser(this.permissionsManagement, event.getConnection().getUniqueId(), event.getConnection().getName(), message -> {
+            event.setCancelled(true);
+            event.setCancelReason(TextComponent.fromLegacyText(ChatColor.translateAlternateColorCodes('&', message)));
+        });
     }
 
     @EventHandler
@@ -60,7 +65,6 @@ public final class BungeeCloudNetCloudPermissionsPlayerListener implements Liste
         UUID uniqueId = event.getPlayer().getUniqueId();
 
         this.permissionsManagement.getCachedPermissionUsers().remove(uniqueId);
-
     }
 
 }

@@ -33,8 +33,11 @@ public class ServiceDisplay {
     }
 
     public String getDisplay(ServiceInfoSnapshot serviceInfoSnapshot) {
-        return serviceInfoSnapshot == null || this.format == null ? null :
-                this.format.replace("%display%", this.displayType.getDisplay(serviceInfoSnapshot));
+        if (serviceInfoSnapshot == null || this.format == null) {
+            return null;
+        }
+        String display = this.displayType.getDisplay(serviceInfoSnapshot);
+        return display == null ? null : this.format.replace("%display%", display);
     }
 
     public String getFormat() {
@@ -51,7 +54,7 @@ public class ServiceDisplay {
         FIRST_GROUP(serviceInfoSnapshot -> serviceInfoSnapshot.getConfiguration().getGroups().length == 0 ? null : serviceInfoSnapshot.getConfiguration().getGroups()[0]),
         LAST_GROUP(serviceInfoSnapshot -> serviceInfoSnapshot.getConfiguration().getGroups().length == 0 ? null : serviceInfoSnapshot.getConfiguration().getGroups()[serviceInfoSnapshot.getConfiguration().getGroups().length - 1]);
 
-        private Function<ServiceInfoSnapshot, String> function;
+        private final Function<ServiceInfoSnapshot, String> function;
 
         DisplayType(Function<ServiceInfoSnapshot, String> function) {
             this.function = function;

@@ -16,8 +16,8 @@ import java.io.File;
 
 public final class NodeCustomChannelMessageListener {
 
-    private NodePlayerManager nodePlayerManager;
-    private BridgeConfiguration bridgeConfiguration;
+    private final NodePlayerManager nodePlayerManager;
+    private final BridgeConfiguration bridgeConfiguration;
 
     public NodeCustomChannelMessageListener(NodePlayerManager nodePlayerManager) {
         this.nodePlayerManager = nodePlayerManager;
@@ -244,9 +244,9 @@ public final class NodeCustomChannelMessageListener {
 
         if (cloudPlayer != null) {
             if (cloudPlayer.getLoginService().getUniqueId().equals(networkConnectionInfo.getNetworkService().getUniqueId())) {
+                this.nodePlayerManager.getOnlineCloudPlayers().remove(cloudPlayer.getUniqueId());
                 cloudPlayer.setLastNetworkConnectionInfo(cloudPlayer.getNetworkConnectionInfo());
                 this.nodePlayerManager.updateOnlinePlayer0(cloudPlayer);
-                this.nodePlayerManager.getOnlineCloudPlayers().remove(cloudPlayer.getUniqueId());
             }
         }
     }

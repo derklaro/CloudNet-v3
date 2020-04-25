@@ -5,6 +5,7 @@ import com.github.juliarn.npc.event.PlayerNPCInteractEvent;
 import de.dytanic.cloudnet.driver.CloudNetDriver;
 import de.dytanic.cloudnet.ext.bridge.player.IPlayerManager;
 import eu.cloudnetservice.cloudnet.ext.npcs.bukkit.BukkitNPCManagement;
+import eu.cloudnetservice.cloudnet.ext.npcs.bukkit.BukkitNPCProperties;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -12,9 +13,17 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.*;
+
 public class NPCInventoryListener implements Listener {
 
-    private BukkitNPCManagement npcManagement;
+    private static final Random RANDOM = new Random();
+
+    private final BukkitNPCManagement npcManagement;
+
+    private final IPlayerManager playerManager = CloudNetDriver.getInstance().getServicesRegistry().getFirstService(IPlayerManager.class);
+
+    private final Map<Integer, BukkitNPCProperties> propertiesCache = new HashMap<>();
 
     public NPCInventoryListener(BukkitNPCManagement npcManagement) {
         this.npcManagement = npcManagement;
@@ -22,11 +31,25 @@ public class NPCInventoryListener implements Listener {
 
     @EventHandler
     public void handleNPCInteract(PlayerNPCInteractEvent event) {
-        if (event.getAction() == PlayerNPCInteractEvent.Action.RIGHT_CLICKED) {
-            this.npcManagement.getNPCProperties().stream()
-                    .filter(properties -> properties.getEntityId() == event.getNPC().getEntityId())
-                    .findFirst()
-                    .ifPresent(properties -> event.getPlayer().openInventory(properties.getInventory()));
+        Player player = event.getPlayer();
+        int entityId = event.getNPC().getEntityId();
+
+        BukkitNPCProperties properties = this.propertiesCache.computeIfAbsent(entityId, key -> this.npcManagement.getNPCProperties().stream()
+                .filter(npcProperty -> npcProperty.getEntityId() == key)
+                .findFirst()
+                .orElse(null));
+
+        if (properties != null) {
+            if (event.getAction() == PlayerNPCInteractEvent.Action.RIGHT_CLICKED) {
+                player.openInventory(properties.getInventory());
+            } else {
+                List<String> serviceNames = new ArrayList<>(properties.getServerSlots().values());
+
+                if (serviceNames.size() > 0) {
+                    String randomServiceName = serviceNames.get(RANDOM.nextInt(serviceNames.size()));
+                    this.playerManager.getPlayerExecutor(player.getUniqueId()).connect(randomServiceName);
+                }
+            }
         }
     }
 
@@ -35,7 +58,7 @@ public class NPCInventoryListener implements Listener {
         Inventory inventory = event.getClickedInventory();
         ItemStack currentItem = event.getCurrentItem();
 
-        if (inventory != null && currentItem != null && event.getWhoClicked() instanceof Player) {
+        if (inventory != null && currentItem != null && inventory.getHolder() == null && event.getWhoClicked() instanceof Player) {
             this.npcManagement.getNPCProperties().stream()
                     .filter(properties -> properties.getInventory().equals(inventory))
                     .findFirst()
@@ -47,8 +70,7 @@ public class NPCInventoryListener implements Listener {
                             Player player = (Player) event.getWhoClicked();
                             String serverName = properties.getServerSlots().get(slot);
 
-                            CloudNetDriver.getInstance().getServicesRegistry().getFirstService(IPlayerManager.class)
-                                    .getPlayerExecutor(player.getUniqueId()).connect(serverName);
+                            this.playerManager.getPlayerExecutor(player.getUniqueId()).connect(serverName);
                         }
                     });
         }

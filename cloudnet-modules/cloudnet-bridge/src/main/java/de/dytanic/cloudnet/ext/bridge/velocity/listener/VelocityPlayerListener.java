@@ -13,14 +13,12 @@ import de.dytanic.cloudnet.ext.bridge.player.NetworkServiceInfo;
 import de.dytanic.cloudnet.ext.bridge.proxy.BridgeProxyHelper;
 import de.dytanic.cloudnet.ext.bridge.velocity.VelocityCloudNetBridgePlugin;
 import de.dytanic.cloudnet.ext.bridge.velocity.VelocityCloudNetHelper;
-import de.dytanic.cloudnet.wrapper.Wrapper;
-import net.kyori.text.TextComponent;
 
 import java.util.concurrent.TimeUnit;
 
 public final class VelocityPlayerListener {
 
-    private VelocityCloudNetBridgePlugin plugin;
+    private final VelocityCloudNetBridgePlugin plugin;
 
     public VelocityPlayerListener(VelocityCloudNetBridgePlugin plugin) {
         this.plugin = plugin;
@@ -51,9 +49,8 @@ public final class VelocityPlayerListener {
         if (serviceInfoSnapshot != null) {
             BridgeHelper.sendChannelMessageProxyServerConnectRequest(VelocityCloudNetHelper.createNetworkConnectionInfo(event.getPlayer()),
                     new NetworkServiceInfo(
-                            serviceInfoSnapshot.getServiceId().getEnvironment(),
-                            Wrapper.getInstance().getServiceId(),
-                            Wrapper.getInstance().getCurrentServiceInfoSnapshot().getConfiguration().getGroups()
+                            serviceInfoSnapshot.getServiceId(),
+                            serviceInfoSnapshot.getConfiguration().getGroups()
                     )
             );
 
@@ -72,9 +69,8 @@ public final class VelocityPlayerListener {
         if (serviceInfoSnapshot != null) {
             BridgeHelper.sendChannelMessageProxyServerSwitch(VelocityCloudNetHelper.createNetworkConnectionInfo(event.getPlayer()),
                     new NetworkServiceInfo(
-                            serviceInfoSnapshot.getServiceId().getEnvironment(),
-                            Wrapper.getInstance().getServiceId(),
-                            Wrapper.getInstance().getCurrentServiceInfoSnapshot().getConfiguration().getGroups()
+                            serviceInfoSnapshot.getServiceId(),
+                            serviceInfoSnapshot.getConfiguration().getGroups()
                     )
             );
         }

@@ -26,7 +26,7 @@ public abstract class SubCommand implements SubCommandExecutor {
     private int minArgs = -1;
     private int exactArgs = -1;
     private int maxArgs = -1;
-    private QuestionAnswerType<?>[] requiredArguments;
+    private final QuestionAnswerType<?>[] requiredArguments;
 
     public SubCommand(int exactArgs, QuestionAnswerType<?>[] requiredArguments) {
         this.exactArgs = exactArgs;
@@ -137,7 +137,7 @@ public abstract class SubCommand implements SubCommandExecutor {
         if (this.requiresMinArgs() && length < this.minArgs) {
             return false;
         }
-        if (this.propertiesEnabled) {
+        if (this.propertiesEnabled && length >= (this.requiresExactArgs() ? this.exactArgs == -1 ? this.requiredArguments.length : this.exactArgs : this.minArgs)) {
             return true;
         }
         return (!this.requiresExactArgs() || (this.exactArgs == -1 ? this.requiredArguments.length : this.exactArgs) == length) && (!this.requiresMaxArgs() || length <= this.maxArgs);

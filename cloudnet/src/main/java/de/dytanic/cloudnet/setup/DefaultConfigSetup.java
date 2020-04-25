@@ -8,7 +8,6 @@ import de.dytanic.cloudnet.console.animation.questionlist.QuestionListEntry;
 import de.dytanic.cloudnet.console.animation.questionlist.answer.QuestionAnswerTypeBoolean;
 import de.dytanic.cloudnet.console.animation.questionlist.answer.QuestionAnswerTypeHostAndPort;
 import de.dytanic.cloudnet.console.animation.questionlist.answer.QuestionAnswerTypeInt;
-import de.dytanic.cloudnet.console.animation.questionlist.answer.QuestionAnswerTypeString;
 import de.dytanic.cloudnet.driver.network.HostAndPort;
 import de.dytanic.cloudnet.driver.network.cluster.NetworkClusterNode;
 
@@ -73,17 +72,6 @@ public class DefaultConfigSetup implements DefaultSetup {
                 }
         ));
 
-
-        animation.addEntry(new QuestionListEntry<>(
-                "nodeId",
-                LanguageManager.getMessage("cloudnet-init-setup-node-id"),
-                new QuestionAnswerTypeString() {
-                    @Override
-                    public String getRecommendation() {
-                        return "Node-1";
-                    }
-                }
-        ));
 
         animation.addEntry(new QuestionListEntry<>(
                 "internalHost",
@@ -156,7 +144,7 @@ public class DefaultConfigSetup implements DefaultSetup {
 
             CloudNet.getInstance().getConfig().setHostAddress(defaultHost.getHost());
             CloudNet.getInstance().getConfig().setIdentity(new NetworkClusterNode(
-                    animation.hasResult("nodeId") ? (String) animation.getResult("nodeId") : "Node-" + UUID.randomUUID().toString().split("-")[0],
+                    animation.hasResult("nodeId") ? (String) animation.getResult("nodeId") : "Node-1",
                     new HostAndPort[]{defaultHost}
             ));
 

@@ -19,8 +19,7 @@ public abstract class ServiceInfoStateWatcher {
 
     protected final Map<UUID, Pair<ServiceInfoSnapshot, ServiceInfoState>> services = new ConcurrentHashMap<>();
 
-    public ServiceInfoStateWatcher() {
-        // including the already existing services
+    public void includeExistingServices() {
         CloudNetDriver.getInstance().getCloudServiceProvider().getCloudServices().stream()
                 .filter(this::shouldWatchService)
                 .forEach(serviceInfoSnapshot -> this.putService(serviceInfoSnapshot, this.fromServiceInfoSnapshot(serviceInfoSnapshot), false));
@@ -122,13 +121,14 @@ public abstract class ServiceInfoStateWatcher {
     }
 
     protected String replaceServiceInfo(@NotNull String input, @Nullable String group, @Nullable ServiceInfoSnapshot serviceInfoSnapshot) {
+        input = input.replace("%group%", group == null ? "" : group);
+
         if (serviceInfoSnapshot == null) {
             return input;
         }
 
         input = input.replace("%task%", serviceInfoSnapshot.getServiceId().getTaskName());
         input = input.replace("%task_id%", String.valueOf(serviceInfoSnapshot.getServiceId().getTaskServiceId()));
-        input = input.replace("%group%", group == null ? "" : group);
         input = input.replace("%name%", serviceInfoSnapshot.getServiceId().getName());
         input = input.replace("%uuid%", serviceInfoSnapshot.getServiceId().getUniqueId().toString().split("-")[0]);
         input = input.replace("%node%", serviceInfoSnapshot.getServiceId().getNodeUniqueId());

@@ -15,7 +15,7 @@ import java.util.Set;
 
 public class CloudNetNPCMessageListener {
 
-    private CloudNetNPCModule npcModule;
+    private final CloudNetNPCModule npcModule;
 
     public CloudNetNPCMessageListener(CloudNetNPCModule npcModule) {
         this.npcModule = npcModule;
@@ -28,7 +28,7 @@ public class CloudNetNPCMessageListener {
                 NPCConstants.NPC_CHANNEL_UPDATE_CONFIGURATION_MESSAGE,
                 new JsonDocument()
                         .append("npcConfiguration", this.npcModule.getNPCConfiguration())
-                        .append("signs", this.npcModule.getCachedNPCs())
+                        .append("npcs", this.npcModule.getCachedNPCs())
         );
     }
 
@@ -63,6 +63,7 @@ public class CloudNetNPCMessageListener {
 
                     Set<CloudNPC> npcs = event.getData().get("npcs", NPCConstants.NPC_COLLECTION_TYPE);
                     if (npcs != null) {
+                        this.npcModule.setCachedNPCs(npcs);
                         this.npcModule.saveNPCs(npcs);
                     }
                 }

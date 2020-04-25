@@ -46,6 +46,11 @@ public class CloudPermissionsManagement implements DefaultPermissionManagement, 
         this.getDriver().getEventManager().registerListener(new PermissionsUpdateListener(this));
     }
 
+    @Override
+    public boolean canBeOverwritten() {
+        return false;
+    }
+
     public boolean hasPlayerPermission(IPermissionUser permissionUser, String perm) {
         Permission permission = new Permission(perm, 0);
 
@@ -58,14 +63,22 @@ public class CloudPermissionsManagement implements DefaultPermissionManagement, 
         return hasPermission(permissionUser, permission);
     }
 
-    @Override
-    public @NotNull IPermissionManagement getChildPermissionManagement() {
-        return this.childPermissionManagement;
+    public PermissionCheckResult getPlayerPermissionResult(IPermissionUser permissionUser, String perm) {
+        Permission permission = new Permission(perm, 0);
+
+        for (String group : Wrapper.getInstance().getServiceConfiguration().getGroups()) {
+            PermissionCheckResult result = getPermissionResult(permissionUser, group, permission);
+            if (result == PermissionCheckResult.ALLOWED || result == PermissionCheckResult.FORBIDDEN) {
+                return result;
+            }
+        }
+
+        return getPermissionResult(permissionUser, permission);
     }
 
     @Override
-    public boolean canBeOverwritten() {
-        return false;
+    public @NotNull IPermissionManagement getChildPermissionManagement() {
+        return this.childPermissionManagement;
     }
 
     @Override
@@ -133,7 +146,7 @@ public class CloudPermissionsManagement implements DefaultPermissionManagement, 
     }
 
     @Override
-    public @NotNull ITask<Void> setUsersAsync(@Nullable Collection<? extends IPermissionUser> users) {
+    public @NotNull ITask<Void> setUsersAsync(@NotNull Collection<? extends IPermissionUser> users) {
         return this.childPermissionManagement.setUsersAsync(users);
     }
 

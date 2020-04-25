@@ -26,22 +26,17 @@ allprojects {
         }
 
         maven {
-            name 'vault'
-            url 'https://repo.md-5.net/repository/releases'
-        }
-
-        maven {
             name 'spigotmc-repo'
             url 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/'
         }
 
         maven {
-            name 'bungeecord-repo'
-            url 'https://oss.sonatype.org/content/repositories/snapshots'
+            name 'papermc'
+            url 'https://papermc.io/repo/repository/maven-public/'
         }
 
         maven {
-            name 'sonatype'
+            name 'bungeecord-repo'
             url 'https://oss.sonatype.org/content/repositories/snapshots'
         }
 
@@ -56,15 +51,20 @@ allprojects {
         }
 
         maven {
-            name 'papermc'
-            url 'https://papermc.io/repo/repository/maven-public/'
+            name 'sonatype'
+            url 'https://oss.sonatype.org/content/repositories/snapshots'
+        }
+
+        maven {
+            name 'vault'
+            url 'https://repo.md-5.net/repository/releases'
         }
 
     }
 
     project.ext {
 
-        cloudNetCodeName = 'Eruption'
+        cloudNetCodeName = 'Hurricane'
 
         //Dependencies
         dependencyGuavaVersion = '28.2-jre'
@@ -193,14 +193,22 @@ subprojects {
         annotationProcessor group: 'org.projectlombok', name: 'lombok', version: dependencyLombokVersion
     }
 
+    task sourcesJar(type: Jar) {
+        from sourceSets.main.allJava
+        archiveClassifier.set('sources')
+    }
+
+    task javadocJar(type: Jar) {
+        from javadoc
+        archiveClassifier.set('javadoc')
+    }
+
     publishing {
         publications {
             mavenJava(MavenPublication) {
-                java {
-                    withSourcesJar()
-                    withJavadocJar()
-                }
                 from components.java
+                artifact sourcesJar
+                artifact javadocJar
             }
         }
         repositories {

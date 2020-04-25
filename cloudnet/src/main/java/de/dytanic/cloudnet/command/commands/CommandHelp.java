@@ -21,9 +21,15 @@ public final class CommandHelp extends CommandDefault implements ITabCompleter {
     public void execute(ICommandSender sender, String command, String[] args, String commandLine, Properties properties) {
         switch (args.length) {
             case 0:
-
                 for (CommandInfo commandInfo : getCloudNet().getCommandMap().getCommandInfos()) {
-                    sender.sendMessage("Aliases: " + Arrays.toString(commandInfo.getNames()) + " - " + commandInfo.getDescription());
+                    StringBuilder builder = new StringBuilder("Aliases: " + Arrays.toString(commandInfo.getNames()));
+                    if (commandInfo.getPermission() != null) {
+                        builder.append(" | Permission: ").append(commandInfo.getPermission());
+                    }
+                    if (commandInfo.getDescription() != null) {
+                        builder.append(" - ").append(commandInfo.getDescription());
+                    }
+                    sender.sendMessage(builder.toString());
                 }
                 sender.sendMessage(LanguageManager.getMessage("command-help-info"));
 
