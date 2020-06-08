@@ -32,7 +32,6 @@ import de.dytanic.cloudnet.driver.service.*;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 
-import java.lang.management.ManagementFactory;
 import java.util.*;
 import java.util.function.Function;
 
@@ -83,6 +82,12 @@ public abstract class CloudNetDriver {
 
     public abstract void stop();
 
+
+    /**
+     * Returns the name of this component. (e.g. Node-1, Lobby-1)
+     */
+    @NotNull
+    public abstract String getComponentName();
 
     @NotNull
     public abstract CloudServiceFactory getCloudServiceFactory();
@@ -203,16 +208,7 @@ public abstract class CloudNetDriver {
      * @return the PID as an int or -1, if it couldn't be fetched
      */
     public int getOwnPID() {
-        if (this.pid == -2) {
-            String runtimeName = ManagementFactory.getRuntimeMXBean().getName();
-            int index = runtimeName.indexOf('@');
-            try {
-                return this.pid = (index < 1 ? -1 : Integer.parseInt(runtimeName.substring(0, index)));
-            } catch (NumberFormatException ignored) {
-                return this.pid = -1;
-            }
-        }
-        return this.pid;
+        return ProcessSnapshot.getOwnPID();
     }
 
     /**
@@ -702,7 +698,7 @@ public abstract class CloudNetDriver {
     public void stopCloudService(ServiceInfoSnapshot serviceInfoSnapshot) {
         Preconditions.checkNotNull(serviceInfoSnapshot);
 
-        setCloudServiceLifeCycle(serviceInfoSnapshot, ServiceLifeCycle.STOPPED);
+        this.setCloudServiceLifeCycle(serviceInfoSnapshot, ServiceLifeCycle.STOPPED);
     }
 
     /**
@@ -715,7 +711,7 @@ public abstract class CloudNetDriver {
     public void startCloudService(ServiceInfoSnapshot serviceInfoSnapshot) {
         Preconditions.checkNotNull(serviceInfoSnapshot);
 
-        setCloudServiceLifeCycle(serviceInfoSnapshot, ServiceLifeCycle.RUNNING);
+        this.setCloudServiceLifeCycle(serviceInfoSnapshot, ServiceLifeCycle.RUNNING);
     }
 
     /**
@@ -728,7 +724,7 @@ public abstract class CloudNetDriver {
     public void deleteCloudService(ServiceInfoSnapshot serviceInfoSnapshot) {
         Preconditions.checkNotNull(serviceInfoSnapshot);
 
-        setCloudServiceLifeCycle(serviceInfoSnapshot, ServiceLifeCycle.DELETED);
+        this.setCloudServiceLifeCycle(serviceInfoSnapshot, ServiceLifeCycle.DELETED);
     }
 
     /**
@@ -1739,7 +1735,7 @@ public abstract class CloudNetDriver {
 
     @NotNull
     public PacketQueryProvider getPacketQueryProvider() {
-        return packetQueryProvider;
+        return this.packetQueryProvider;
     }
 
     @NotNull

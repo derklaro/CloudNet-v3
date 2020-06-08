@@ -10,6 +10,7 @@ import de.dytanic.cloudnet.ext.bridge.WorldPosition;
 import de.dytanic.cloudnet.ext.bridge.player.NetworkConnectionInfo;
 import de.dytanic.cloudnet.ext.bridge.player.NetworkPlayerServerInfo;
 import de.dytanic.cloudnet.ext.bridge.player.NetworkServiceInfo;
+import de.dytanic.cloudnet.ext.bridge.server.BridgeServerHelper;
 import de.dytanic.cloudnet.wrapper.Wrapper;
 import org.spongepowered.api.Platform;
 import org.spongepowered.api.Sponge;
@@ -21,21 +22,16 @@ import org.spongepowered.api.world.World;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-public final class SpongeCloudNetHelper {
-
-    private static volatile String
-            apiMotd = Sponge.getServer().getMotd().toPlain(),
-            extra = "",
-            state = "LOBBY";
-    private static volatile int maxPlayers = Sponge.getServer().getMaxPlayers();
+public final class SpongeCloudNetHelper extends BridgeServerHelper {
 
     private SpongeCloudNetHelper() {
         throw new UnsupportedOperationException();
     }
 
-
-    public static void changeToIngame() {
-        BridgeHelper.changeToIngame(s -> SpongeCloudNetHelper.state = s);
+    public static void init() {
+        BridgeServerHelper.setMotd(Sponge.getServer().getMotd().toPlain());
+        BridgeServerHelper.setState("LOBBY");
+        BridgeServerHelper.setMaxPlayers(Sponge.getServer().getMaxPlayers());
     }
 
     public static void initProperties(ServiceInfoSnapshot serviceInfoSnapshot) {
@@ -46,10 +42,10 @@ public final class SpongeCloudNetHelper {
                 .append("Version", Sponge.getPlatform().getMinecraftVersion())
                 .append("Sponge-Version", Sponge.getPlatform().getContainer(Platform.Component.API).getVersion())
                 .append("Online-Count", Sponge.getServer().getOnlinePlayers().size())
-                .append("Max-Players", maxPlayers)
-                .append("Motd", apiMotd)
-                .append("Extra", extra)
-                .append("State", state)
+                .append("Max-Players", BridgeServerHelper.getMaxPlayers())
+                .append("Motd", BridgeServerHelper.getMotd())
+                .append("Extra", BridgeServerHelper.getExtra())
+                .append("State", BridgeServerHelper.getState())
                 .append("Outgoing-Channels", Sponge.getChannelRegistrar().getRegisteredChannels(Platform.Type.SERVER))
                 .append("Incoming-Channels", Sponge.getChannelRegistrar().getRegisteredChannels(Platform.Type.CLIENT))
                 .append("Online-Mode", Sponge.getServer().getOnlineMode())
@@ -147,35 +143,4 @@ public final class SpongeCloudNetHelper {
         );
     }
 
-    public static String getApiMotd() {
-        return SpongeCloudNetHelper.apiMotd;
-    }
-
-    public static void setApiMotd(String apiMotd) {
-        SpongeCloudNetHelper.apiMotd = apiMotd;
-    }
-
-    public static String getExtra() {
-        return SpongeCloudNetHelper.extra;
-    }
-
-    public static void setExtra(String extra) {
-        SpongeCloudNetHelper.extra = extra;
-    }
-
-    public static String getState() {
-        return SpongeCloudNetHelper.state;
-    }
-
-    public static void setState(String state) {
-        SpongeCloudNetHelper.state = state;
-    }
-
-    public static int getMaxPlayers() {
-        return SpongeCloudNetHelper.maxPlayers;
-    }
-
-    public static void setMaxPlayers(int maxPlayers) {
-        SpongeCloudNetHelper.maxPlayers = maxPlayers;
-    }
 }

@@ -18,7 +18,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 
 public class DefaultDatabasePermissionManagement extends ClusterSynchronizedPermissionManagement
-        implements DefaultSynchronizedPermissionManagement, DefaultPermissionManagement {
+        implements DefaultSynchronizedPermissionManagement {
 
     private static final String DATABASE_USERS_NAME = "cloudnet_permission_users";
 
@@ -30,7 +30,10 @@ public class DefaultDatabasePermissionManagement extends ClusterSynchronizedPerm
 
     public DefaultDatabasePermissionManagement(Callable<AbstractDatabaseProvider> databaseProviderCallable) {
         this.databaseProviderCallable = databaseProviderCallable;
+    }
 
+    @Override
+    public void init() {
         this.file.getParentFile().mkdirs();
         this.loadGroups();
     }
@@ -393,7 +396,7 @@ public class DefaultDatabasePermissionManagement extends ClusterSynchronizedPerm
 
     @Override
     public boolean reload() {
-        loadGroups();
+        this.loadGroups();
 
         if (this.permissionManagementHandler != null) {
             this.permissionManagementHandler.handleReloaded(this);

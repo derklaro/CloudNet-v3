@@ -19,7 +19,6 @@ import de.dytanic.cloudnet.common.io.FileUtils;
 import de.dytanic.cloudnet.common.language.LanguageManager;
 import de.dytanic.cloudnet.common.logging.ILogger;
 import de.dytanic.cloudnet.common.logging.LogLevel;
-import de.dytanic.cloudnet.common.unsafe.CPUUsageResolver;
 import de.dytanic.cloudnet.conf.IConfiguration;
 import de.dytanic.cloudnet.conf.IConfigurationRegistry;
 import de.dytanic.cloudnet.conf.JsonConfiguration;
@@ -173,7 +172,7 @@ public final class CloudNet extends CloudNetDriver {
 
         this.consoleCommandSender = new ConsoleCommandSender(logger);
 
-        logger.addLogHandler(queuedConsoleLogHandler = new QueuedConsoleLogHandler());
+        logger.addLogHandler(this.queuedConsoleLogHandler = new QueuedConsoleLogHandler());
 
         this.cloudServiceManager.init();
 
@@ -208,7 +207,7 @@ public final class CloudNet extends CloudNetDriver {
         this.config.load();
         this.defaultInstallation.executeFirstStartSetup(this.console, configFileAvailable);
 
-        HeaderReader.readAndPrintHeader(console);
+        HeaderReader.readAndPrintHeader(this.console);
 
         if (this.config.getMaxMemory() < 2048) {
             CloudNetDriver.getInstance().getLogger().warning(LanguageManager.getMessage("cloudnet-init-config-low-memory-warning"));
@@ -216,13 +215,13 @@ public final class CloudNet extends CloudNetDriver {
 
         this.networkClient = new NettyNetworkClient(NetworkClientChannelHandlerImpl::new,
                 this.config.getClientSslConfig().isEnabled() ? this.config.getClientSslConfig().toSslConfiguration() : null,
-                networkTaskScheduler
+                this.networkTaskScheduler
         );
         super.packetQueryProvider = new PacketQueryProvider(this.networkClient);
 
         this.networkServer = new NettyNetworkServer(NetworkServerChannelHandlerImpl::new,
                 this.config.getClientSslConfig().isEnabled() ? this.config.getServerSslConfig().toSslConfiguration() : null,
-                networkTaskScheduler
+                this.networkTaskScheduler
         );
         this.httpServer = new NettyHttpServer(this.config.getClientSslConfig().isEnabled() ? this.config.getWebSslConfig().toSslConfiguration() : null);
 
@@ -235,16 +234,16 @@ public final class CloudNet extends CloudNetDriver {
         this.registerDefaultCommands();
         this.registerDefaultServices();
 
-        this.currentNetworkClusterNodeInfoSnapshot = createClusterNodeInfoSnapshot();
-        this.lastNetworkClusterNodeInfoSnapshot = currentNetworkClusterNodeInfoSnapshot;
+        this.currentNetworkClusterNodeInfoSnapshot = this.createClusterNodeInfoSnapshot();
+        this.lastNetworkClusterNodeInfoSnapshot = this.currentNetworkClusterNodeInfoSnapshot;
 
         this.loadModules();
 
         this.databaseProvider = this.servicesRegistry.getService(AbstractDatabaseProvider.class,
                 this.configurationRegistry.getString("database_provider", "h2"));
 
-        if (databaseProvider == null) {
-            stop();
+        if (this.databaseProvider == null) {
+            this.stop();
         }
 
         this.databaseProvider.setDatabaseHandler(new DefaultDatabaseHandler());
@@ -255,6 +254,7 @@ public final class CloudNet extends CloudNetDriver {
         }
 
         NodePermissionManagement permissionManagement = new DefaultDatabasePermissionManagement(this::getDatabaseProvider);
+        permissionManagement.init();
         permissionManagement.setPermissionManagementHandler(new DefaultPermissionManagementHandler());
         this.permissionManagement = permissionManagement;
 
@@ -278,7 +278,7 @@ public final class CloudNet extends CloudNetDriver {
     private void setNetworkListeners() {
         Random random = new Random();
         for (NetworkClusterNode node : this.config.getClusterConfig().getNodes()) {
-            if (!networkClient.connect(node.getListeners()[random.nextInt(node.getListeners().length)])) {
+            if (!this.networkClient.connect(node.getListeners()[random.nextInt(node.getListeners().length)])) {
                 this.logger.log(LogLevel.WARNING, LanguageManager.getMessage("cluster-server-networking-connection-refused"));
             }
         }
@@ -363,6 +363,11 @@ public final class CloudNet extends CloudNetDriver {
         if (!Thread.currentThread().getName().equals("Shutdown Thread")) {
             System.exit(0);
         }
+    }
+
+    @Override
+    public @NotNull String getComponentName() {
+        return this.config.getIdentity().getUniqueId();
     }
 
     public LogLevel getDefaultLogLevel() {
@@ -480,8 +485,8 @@ public final class CloudNet extends CloudNetDriver {
 
         Collection<ServiceTemplate> collection = new ArrayList<>();
 
-        if (servicesRegistry.containsService(ITemplateStorage.class, serviceName)) {
-            collection.addAll(servicesRegistry.getService(ITemplateStorage.class, serviceName).getTemplates());
+        if (this.servicesRegistry.containsService(ITemplateStorage.class, serviceName)) {
+            collection.addAll(this.servicesRegistry.getService(ITemplateStorage.class, serviceName).getTemplates());
         }
 
         return collection;
@@ -503,10 +508,10 @@ public final class CloudNet extends CloudNetDriver {
         Preconditions.checkNotNull(uniqueId);
         Preconditions.checkNotNull(commandLine);
 
-        IPermissionUser permissionUser = permissionManagement.getUser(uniqueId);
+        IPermissionUser permissionUser = this.permissionManagement.getUser(uniqueId);
         if (permissionUser != null) {
-            IPermissionUserCommandSender commandSender = new DefaultPermissionUserCommandSender(permissionUser, permissionManagement);
-            boolean value = commandMap.dispatchCommand(commandSender, commandLine);
+            IPermissionUserCommandSender commandSender = new DefaultPermissionUserCommandSender(permissionUser, this.permissionManagement);
+            boolean value = this.commandMap.dispatchCommand(commandSender, commandLine);
 
             return new Pair<>(value, commandSender.getWrittenMessages().toArray(new String[0]));
         } else {
@@ -517,7 +522,7 @@ public final class CloudNet extends CloudNetDriver {
     @Override
     @NotNull
     public ITask<Collection<ServiceTemplate>> getLocalTemplateStorageTemplatesAsync() {
-        return scheduleTask(CloudNet.this::getLocalTemplateStorageTemplates);
+        return this.scheduleTask(CloudNet.this::getLocalTemplateStorageTemplates);
     }
 
     @Override
@@ -525,7 +530,7 @@ public final class CloudNet extends CloudNetDriver {
     public ITask<Collection<ServiceTemplate>> getTemplateStorageTemplatesAsync(@NotNull String serviceName) {
         Preconditions.checkNotNull(serviceName);
 
-        return scheduleTask(() -> CloudNet.this.getTemplateStorageTemplates(serviceName));
+        return this.scheduleTask(() -> CloudNet.this.getTemplateStorageTemplates(serviceName));
     }
 
     @Override
@@ -534,7 +539,7 @@ public final class CloudNet extends CloudNetDriver {
         Preconditions.checkNotNull(uniqueId);
         Preconditions.checkNotNull(commandLine);
 
-        return scheduleTask(() -> CloudNet.this.sendCommandLineAsPermissionUser(uniqueId, commandLine));
+        return this.scheduleTask(() -> CloudNet.this.sendCommandLineAsPermissionUser(uniqueId, commandLine));
     }
 
     @NotNull
@@ -571,8 +576,8 @@ public final class CloudNet extends CloudNetDriver {
 
     @NotNull
     public ITask<Void> sendAllAsync(IPacket packet) {
-        return scheduleTask(() -> {
-            sendAll(packet);
+        return this.scheduleTask(() -> {
+            this.sendAll(packet);
             return null;
         });
     }
@@ -580,11 +585,11 @@ public final class CloudNet extends CloudNetDriver {
     public void sendAll(IPacket packet) {
         Preconditions.checkNotNull(packet);
 
-        for (IClusterNodeServer clusterNodeServer : getClusterNodeServerProvider().getNodeServers()) {
+        for (IClusterNodeServer clusterNodeServer : this.getClusterNodeServerProvider().getNodeServers()) {
             clusterNodeServer.saveSendPacket(packet);
         }
 
-        for (ICloudService cloudService : getCloudServiceManager().getCloudServices().values()) {
+        for (ICloudService cloudService : this.getCloudServiceManager().getCloudServices().values()) {
             if (cloudService.getNetworkChannel() != null) {
                 cloudService.getNetworkChannel().sendPacket(packet);
             }
@@ -593,8 +598,8 @@ public final class CloudNet extends CloudNetDriver {
 
     @NotNull
     public ITask<Void> sendAllAsync(IPacket... packets) {
-        return scheduleTask(() -> {
-            sendAll(packets);
+        return this.scheduleTask(() -> {
+            this.sendAll(packets);
             return null;
         });
     }
@@ -602,7 +607,7 @@ public final class CloudNet extends CloudNetDriver {
     public void sendAll(IPacket... packets) {
         Preconditions.checkNotNull(packets);
 
-        for (IClusterNodeServer clusterNodeServer : getClusterNodeServerProvider().getNodeServers()) {
+        for (IClusterNodeServer clusterNodeServer : this.getClusterNodeServerProvider().getNodeServers()) {
             for (IPacket packet : packets) {
                 if (packet != null) {
                     clusterNodeServer.saveSendPacket(packet);
@@ -610,7 +615,7 @@ public final class CloudNet extends CloudNetDriver {
             }
         }
 
-        for (ICloudService cloudService : getCloudServiceManager().getCloudServices().values()) {
+        for (ICloudService cloudService : this.getCloudServiceManager().getCloudServices().values()) {
             if (cloudService.getNetworkChannel() != null) {
                 cloudService.getNetworkChannel().sendPacket(packets);
             }
@@ -628,19 +633,7 @@ public final class CloudNet extends CloudNetDriver {
                 this.cloudServiceManager.getCurrentUsedHeapMemory(),
                 this.cloudServiceManager.getCurrentReservedMemory(),
                 this.config.getMaxMemory(),
-                new ProcessSnapshot(
-                        memoryMXBean.getHeapMemoryUsage().getUsed(),
-                        memoryMXBean.getNonHeapMemoryUsage().getUsed(),
-                        memoryMXBean.getHeapMemoryUsage().getMax(),
-                        ManagementFactory.getClassLoadingMXBean().getLoadedClassCount(),
-                        ManagementFactory.getClassLoadingMXBean().getTotalLoadedClassCount(),
-                        ManagementFactory.getClassLoadingMXBean().getUnloadedClassCount(),
-                        Thread.getAllStackTraces().keySet().stream()
-                                .map(thread -> new ThreadSnapshot(thread.getId(), thread.getName(), thread.getState(), thread.isDaemon(), thread.getPriority()))
-                                .collect(Collectors.toList()),
-                        CPUUsageResolver.getProcessCPUUsage(),
-                        this.getOwnPID()
-                ),
+                ProcessSnapshot.self(),
                 this.moduleProvider.getModules().stream().map(moduleWrapper -> new NetworkClusterNodeExtensionSnapshot(
                         moduleWrapper.getModuleConfiguration().getGroup(),
                         moduleWrapper.getModuleConfiguration().getName(),
@@ -662,7 +655,7 @@ public final class CloudNet extends CloudNetDriver {
     }
 
     public Collection<IClusterNodeServer> getValidClusterNodeServers(ServiceTask serviceTask) {
-        return clusterNodeServerProvider.getNodeServers().stream().filter(clusterNodeServer -> {
+        return this.clusterNodeServerProvider.getNodeServers().stream().filter(clusterNodeServer -> {
             if (!clusterNodeServer.isConnected()) {
                 return false;
             }
@@ -707,14 +700,14 @@ public final class CloudNet extends CloudNetDriver {
     public void unregisterPacketListenersByClassLoader(ClassLoader classLoader) {
         Preconditions.checkNotNull(classLoader);
 
-        networkClient.getPacketRegistry().removeListeners(classLoader);
-        networkServer.getPacketRegistry().removeListeners(classLoader);
+        this.networkClient.getPacketRegistry().removeListeners(classLoader);
+        this.networkServer.getPacketRegistry().removeListeners(classLoader);
 
-        for (INetworkChannel channel : networkServer.getChannels()) {
+        for (INetworkChannel channel : this.networkServer.getChannels()) {
             channel.getPacketRegistry().removeListeners(classLoader);
         }
 
-        for (INetworkChannel channel : networkClient.getChannels()) {
+        for (INetworkChannel channel : this.networkClient.getChannels()) {
             channel.getPacketRegistry().removeListeners(classLoader);
         }
     }
@@ -723,7 +716,7 @@ public final class CloudNet extends CloudNetDriver {
         this.lastNetworkClusterNodeInfoSnapshot = this.currentNetworkClusterNodeInfoSnapshot;
         this.currentNetworkClusterNodeInfoSnapshot = this.createClusterNodeInfoSnapshot();
 
-        this.getEventManager().callEvent(new NetworkClusterNodeInfoConfigureEvent(currentNetworkClusterNodeInfoSnapshot));
+        this.getEventManager().callEvent(new NetworkClusterNodeInfoConfigureEvent(this.currentNetworkClusterNodeInfoSnapshot));
         this.sendAll(new PacketServerClusterNodeInfoUpdate(this.currentNetworkClusterNodeInfoSnapshot));
     }
 
@@ -733,8 +726,8 @@ public final class CloudNet extends CloudNetDriver {
 
     public void publishH2DatabaseDataToCluster(INetworkChannel channel) {
         if (channel != null) {
-            if (databaseProvider instanceof H2DatabaseProvider) {
-                Map<String, Map<String, JsonDocument>> map = allocateDatabaseData();
+            if (this.databaseProvider instanceof H2DatabaseProvider) {
+                Map<String, Map<String, JsonDocument>> map = this.allocateDatabaseData();
 
                 channel.sendPacket(new PacketServerSetH2DatabaseData(map, NetworkUpdateType.ADD));
 
@@ -750,11 +743,11 @@ public final class CloudNet extends CloudNetDriver {
     private Map<String, Map<String, JsonDocument>> allocateDatabaseData() {
         Map<String, Map<String, JsonDocument>> map = new HashMap<>();
 
-        for (String name : databaseProvider.getDatabaseNames()) {
+        for (String name : this.databaseProvider.getDatabaseNames()) {
             if (!map.containsKey(name)) {
                 map.put(name, new HashMap<>());
             }
-            IDatabase database = databaseProvider.getDatabase(name);
+            IDatabase database = this.databaseProvider.getDatabase(name);
             map.get(name).putAll(database.entries());
         }
 
@@ -829,7 +822,7 @@ public final class CloudNet extends CloudNetDriver {
 
                 this.updateServiceLogs();
 
-                eventManager.callEvent(new CloudNetTickEvent());
+                this.eventManager.callEvent(new CloudNetTickEvent());
 
             } catch (Exception exception) {
                 exception.printStackTrace();
@@ -838,7 +831,7 @@ public final class CloudNet extends CloudNetDriver {
     }
 
     private void launchServices() {
-        for (ServiceTask serviceTask : cloudServiceManager.getServiceTasks()) {
+        for (ServiceTask serviceTask : this.cloudServiceManager.getServiceTasks()) {
             if (serviceTask.canStartServices()) {
 
                 Collection<ServiceInfoSnapshot> taskServices = this.getCloudServiceProvider().getCloudServices(serviceTask.getName());
@@ -866,7 +859,7 @@ public final class CloudNet extends CloudNetDriver {
                         // There is no local existing service to start and there are less services existing of this task
                         // than the specified minServiceCount, so starting a new service, because this is the best node to do so
 
-                        ICloudService cloudService = cloudServiceManager.runTask(serviceTask);
+                        ICloudService cloudService = this.cloudServiceManager.runTask(serviceTask);
 
                         if (cloudService != null) {
                             try {
@@ -894,7 +887,7 @@ public final class CloudNet extends CloudNetDriver {
     }
 
     private void updateServiceLogs() {
-        for (ICloudService cloudService : cloudServiceManager.getCloudServices().values()) {
+        for (ICloudService cloudService : this.cloudServiceManager.getCloudServices().values()) {
             cloudService.getServiceConsoleLogCache().update();
         }
     }
@@ -963,13 +956,13 @@ public final class CloudNet extends CloudNetDriver {
     public <T> ITask<T> scheduleTask(Callable<T> callable) {
         ITask<T> task = new ListenableTask<>(callable);
 
-        taskScheduler.schedule(task);
+        this.taskScheduler.schedule(task);
         return task;
     }
 
     private void enableModules() {
-        loadModules();
-        startModules();
+        this.loadModules();
+        this.startModules();
     }
 
     private void loadModules() {
@@ -1022,21 +1015,21 @@ public final class CloudNet extends CloudNetDriver {
                     return;
                 }
 
-                CommandPreProcessEvent commandPreProcessEvent = new CommandPreProcessEvent(input, getConsoleCommandSender());
-                getEventManager().callEvent(commandPreProcessEvent);
+                CommandPreProcessEvent commandPreProcessEvent = new CommandPreProcessEvent(input, this.getConsoleCommandSender());
+                this.getEventManager().callEvent(commandPreProcessEvent);
 
                 if (commandPreProcessEvent.isCancelled()) {
                     return;
                 }
 
-                if (!getCommandMap().dispatchCommand(getConsoleCommandSender(), input)) {
-                    getEventManager().callEvent(new CommandNotFoundEvent(input));
+                if (!this.getCommandMap().dispatchCommand(this.getConsoleCommandSender(), input)) {
+                    this.getEventManager().callEvent(new CommandNotFoundEvent(input));
                     this.logger.warning(LanguageManager.getMessage("command-not-found"));
 
                     return;
                 }
 
-                getEventManager().callEvent(new CommandPostProcessEvent(input, getConsoleCommandSender()));
+                this.getEventManager().callEvent(new CommandPostProcessEvent(input, this.getConsoleCommandSender()));
 
             } catch (Throwable ex) {
                 ex.printStackTrace();

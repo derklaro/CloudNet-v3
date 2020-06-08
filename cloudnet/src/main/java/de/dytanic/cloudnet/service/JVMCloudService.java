@@ -105,7 +105,7 @@ final class JVMCloudService implements ICloudService {
         this.groups.addAll(Arrays.asList(this.serviceConfiguration.getGroups()));
         this.configuredMaxHeapMemory = this.serviceConfiguration.getProcessConfig().getMaxHeapMemorySize();
 
-        this.serviceInfoSnapshot = this.lastServiceInfoSnapshot = createServiceInfoSnapshot(ServiceLifeCycle.DEFINED);
+        this.serviceInfoSnapshot = this.lastServiceInfoSnapshot = this.createServiceInfoSnapshot(ServiceLifeCycle.DEFINED);
 
         this.directory =
                 serviceConfiguration.isStaticService() ?
@@ -138,7 +138,7 @@ final class JVMCloudService implements ICloudService {
     @Override
     public void start() throws Exception {
         try {
-            lifeCycleLock.lock();
+            this.lifeCycleLock.lock();
 
             if (!CloudNet.getInstance().getConfig().isParallelServiceStartSequence()) {
                 try {
@@ -153,18 +153,18 @@ final class JVMCloudService implements ICloudService {
             }
 
         } finally {
-            lifeCycleLock.unlock();
+            this.lifeCycleLock.unlock();
         }
     }
 
     @Override
     public void restart() throws Exception {
-        restartState = true;
+        this.restartState = true;
 
         this.stop();
         this.start();
 
-        restartState = false;
+        this.restartState = false;
     }
 
     @Override
@@ -296,7 +296,7 @@ final class JVMCloudService implements ICloudService {
 
     private void start0() throws Exception {
         if (this.lifeCycle == ServiceLifeCycle.PREPARED || this.lifeCycle == ServiceLifeCycle.STOPPED) {
-            if (!hasAccessFromNode() || CloudNetDriver.getInstance().getEventManager().callEvent(new CloudServicePreStartPrepareEvent(this)).isCancelled()) {
+            if (!this.hasAccessFromNode() || CloudNetDriver.getInstance().getEventManager().callEvent(new CloudServicePreStartPrepareEvent(this)).isCancelled()) {
                 return;
             }
 
@@ -372,7 +372,7 @@ final class JVMCloudService implements ICloudService {
             if (CloudNet.getInstance().getConfig().isRunBlockedServiceStartTryLaterAutomatic()) {
                 CloudNet.getInstance().runTask(() -> {
                     try {
-                        start();
+                        this.start();
                     } catch (Exception exception) {
                         exception.printStackTrace();
                     }
@@ -388,7 +388,7 @@ final class JVMCloudService implements ICloudService {
             if (CloudNet.getInstance().getConfig().isRunBlockedServiceStartTryLaterAutomatic()) {
                 CloudNet.getInstance().runTask(() -> {
                     try {
-                        start();
+                        this.start();
                     } catch (Exception exception) {
                         exception.printStackTrace();
                     }
@@ -414,19 +414,7 @@ final class JVMCloudService implements ICloudService {
                 new HostAndPort(CloudNet.getInstance().getConfig().getHostAddress(), this.serviceConfiguration.getPort()),
                 -1,
                 lifeCycle,
-                this.serviceInfoSnapshot != null ?
-                        this.serviceInfoSnapshot.getProcessSnapshot() :
-                        new ProcessSnapshot(
-                                -1,
-                                -1,
-                                -1,
-                                -1,
-                                -1,
-                                -1,
-                                Collections.emptyList(),
-                                -1,
-                                -1
-                        ),
+                this.serviceInfoSnapshot != null ? this.serviceInfoSnapshot.getProcessSnapshot() : ProcessSnapshot.empty(),
                 this.serviceInfoSnapshot != null ? this.serviceInfoSnapshot.getProperties() : this.serviceConfiguration.getProperties(),
                 this.serviceConfiguration
         );
@@ -456,7 +444,7 @@ final class JVMCloudService implements ICloudService {
                     cacheDestination.getParentFile().mkdirs();
 
                     if (!cacheDestination.exists()) {
-                        if (!includeInclusions0(inclusion, cacheDestination, buffer)) {
+                        if (!this.includeInclusions0(inclusion, cacheDestination, buffer)) {
                             continue;
                         }
                     }
@@ -515,7 +503,7 @@ final class JVMCloudService implements ICloudService {
             ServiceTemplate template = this.waitingTemplates.poll();
 
             if (template != null && template.getName() != null && template.getPrefix() != null && template.getStorage() != null) {
-                ITemplateStorage storage = getStorage(template.getStorage());
+                ITemplateStorage storage = this.getStorage(template.getStorage());
 
                 if (!storage.has(template)) {
                     continue;
@@ -557,7 +545,7 @@ final class JVMCloudService implements ICloudService {
             if (deployment != null) {
                 if (deployment.getTemplate() != null && deployment.getTemplate().getStorage() != null && deployment.getTemplate().getPrefix() != null &&
                         deployment.getTemplate().getName() != null) {
-                    ITemplateStorage storage = getStorage(deployment.getTemplate().getStorage());
+                    ITemplateStorage storage = this.getStorage(deployment.getTemplate().getStorage());
 
                     CloudServiceDeploymentEvent cloudServiceDeploymentEvent = new CloudServiceDeploymentEvent(this, storage, deployment);
                     CloudNetDriver.getInstance().getEventManager().callEvent(cloudServiceDeploymentEvent);
@@ -620,17 +608,7 @@ final class JVMCloudService implements ICloudService {
         List<String> commandArguments = new ArrayList<>();
 
         commandArguments.add(CloudNet.getInstance().getConfig().getJVMCommand());
-
-        if (CloudNet.getInstance().getConfig().isDefaultJVMOptionParameters()) {
-            commandArguments.addAll(Arrays.asList(
-                    "-XX:+UseG1GC",
-                    "-XX:MaxGCPauseMillis=50",
-                    "-XX:-UseAdaptiveSizePolicy",
-                    "-XX:CompileThreshold=100",
-                    "-XX:+UnlockExperimentalVMOptions",
-                    "-XX:+UseCompressedOops"
-            ));
-        }
+        commandArguments.addAll(CloudNet.getInstance().getConfig().getDefaultJVMFlags().getJvmFlags());
 
         commandArguments.addAll(Arrays.asList(
                 // sys properties
@@ -643,7 +621,7 @@ final class JVMCloudService implements ICloudService {
                 "-Dio.netty.recycler.maxCapacity=0",
                 "-Dio.netty.recycler.maxCapacity.default=0",
                 "-DIReallyKnowWhatIAmDoingISwear=true",
-                "-Dcloudnet.wrapper.receivedMessages.language=" + LanguageManager.getLanguage()
+                "-Dcloudnet.wrapper.messages.language=" + LanguageManager.getLanguage()
         ));
 
         File wrapperFile = new File(System.getProperty("cloudnet.tempDir", "temp"), "caches/wrapper.jar");
@@ -721,9 +699,9 @@ final class JVMCloudService implements ICloudService {
     private void rewriteBungeeConfig(File config) throws Exception {
         this.rewriteServiceConfigurationFile(config, line -> {
             if (line.startsWith("    host: ")) {
-                line = "    host: " + CloudNet.getInstance().getConfig().getHostAddress() + ":" + serviceConfiguration.getPort();
+                line = "    host: " + CloudNet.getInstance().getConfig().getHostAddress() + ":" + this.serviceConfiguration.getPort();
             } else if (line.startsWith("  host: ")) {
-                line = "  host: " + CloudNet.getInstance().getConfig().getHostAddress() + ":" + serviceConfiguration.getPort();
+                line = "  host: " + CloudNet.getInstance().getConfig().getHostAddress() + ":" + this.serviceConfiguration.getPort();
             }
 
             return line;
@@ -755,7 +733,7 @@ final class JVMCloudService implements ICloudService {
                 this.rewriteServiceConfigurationFile(file, line -> {
                     if (reference.get() && line.startsWith("bind =")) {
                         reference.set(false);
-                        return "bind = \"" + CloudNet.getInstance().getConfig().getHostAddress() + ":" + serviceConfiguration.getPort() + "\"";
+                        return "bind = \"" + CloudNet.getInstance().getConfig().getHostAddress() + ":" + this.serviceConfiguration.getPort() + "\"";
                     }
 
                     return line;
@@ -821,7 +799,7 @@ final class JVMCloudService implements ICloudService {
                 File file = new File(this.directory, "config/glowstone.yml");
                 file.getParentFile().mkdirs();
 
-                copyDefaultFile("files/glowstone/glowstone.yml", file);
+                this.copyDefaultFile("files/glowstone/glowstone.yml", file);
 
                 this.rewriteServiceConfigurationFile(file, line -> {
                     if (line.startsWith("    ip: ")) {
@@ -829,7 +807,7 @@ final class JVMCloudService implements ICloudService {
                     }
 
                     if (line.startsWith("    port: ")) {
-                        line = "    port: " + serviceConfiguration.getPort();
+                        line = "    port: " + this.serviceConfiguration.getPort();
                     }
 
                     return line;
@@ -914,7 +892,7 @@ final class JVMCloudService implements ICloudService {
                     .replace("%exit_value%", String.valueOf(exitValue))
             );
 
-            this.serviceInfoSnapshot = createServiceInfoSnapshot(ServiceLifeCycle.STOPPED);
+            this.serviceInfoSnapshot = this.createServiceInfoSnapshot(ServiceLifeCycle.STOPPED);
 
             CloudNet.getInstance().sendAll(new PacketClientServerServiceInfoPublisher(this.serviceInfoSnapshot, PacketClientServerServiceInfoPublisher.PublisherType.STOPPED));
             return exitValue;
@@ -934,8 +912,8 @@ final class JVMCloudService implements ICloudService {
                     outputStream.write("end\n".getBytes());
                     outputStream.flush();
 
-                    if (process.waitFor(5, TimeUnit.SECONDS)) {
-                        return process.exitValue();
+                    if (this.process.waitFor(5, TimeUnit.SECONDS)) {
+                        return this.process.exitValue();
                     }
                 } catch (Exception exception) {
                     exception.printStackTrace();

@@ -42,12 +42,12 @@ public final class DefaultClusterNodeServer implements IClusterNodeServer {
 
     @Override
     public void sendClusterChannelMessage(@NotNull String channel, @NotNull String message, @NotNull JsonDocument header, byte[] body) {
-        saveSendPacket(new PacketServerClusterChannelMessage(channel, message, header, body));
+        this.saveSendPacket(new PacketServerClusterChannelMessage(channel, message, header, body));
     }
 
     @Override
     public void sendCustomChannelMessage(@NotNull String channel, @NotNull String message, @NotNull JsonDocument data) {
-        saveSendPacket(new PacketClientServerChannelMessage(channel, message, data));
+        this.saveSendPacket(new PacketClientServerChannelMessage(channel, message, data));
     }
 
     @Override
@@ -72,7 +72,7 @@ public final class DefaultClusterNodeServer implements IClusterNodeServer {
     public String[] sendCommandLine(@NotNull String commandLine) {
         if (this.channel != null) {
             try {
-                return CloudNetDriver.getInstance().getPacketQueryProvider().sendCallablePacketWithAsDriverSyncAPI(channel,
+                return CloudNetDriver.getInstance().getPacketQueryProvider().sendCallablePacketWithAsDriverSyncAPI(this.channel,
                         new JsonDocument(PacketConstants.SYNC_PACKET_ID_PROPERTY, "send_commandLine")
                                 .append("commandLine", commandLine)
                         , new byte[0],

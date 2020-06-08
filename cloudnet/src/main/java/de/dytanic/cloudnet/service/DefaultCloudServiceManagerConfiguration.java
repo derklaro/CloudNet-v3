@@ -1,6 +1,7 @@
 package de.dytanic.cloudnet.service;
 
 import com.google.gson.reflect.TypeToken;
+import de.dytanic.cloudnet.CloudNet;
 import de.dytanic.cloudnet.common.document.gson.JsonDocument;
 import de.dytanic.cloudnet.common.language.LanguageManager;
 import de.dytanic.cloudnet.driver.service.GroupConfiguration;
@@ -71,9 +72,12 @@ final class DefaultCloudServiceManagerConfiguration {
                     JsonDocument document = JsonDocument.newDocument(path);
                     ServiceTask task = document.toInstanceOf(ServiceTask.class);
                     if (task != null && task.getName() != null) {
-                        tasks.add(task);
+                        DefaultCloudServiceManagerConfiguration.this.tasks.add(task);
                         Files.write(path, new JsonDocument(task).toPrettyJson().getBytes(StandardCharsets.UTF_8));
                         System.out.println(LanguageManager.getMessage("cloudnet-load-task-success").replace("%path%", path.toString()).replace("%name%", task.getName()));
+                        if (task.isMaintenance()) {
+                            CloudNet.getInstance().getLogger().warning(LanguageManager.getMessage("cloudnet-load-task-maintenance-warning").replace("%task%", task.getName()));
+                        }
                     } else {
                         System.err.println(LanguageManager.getMessage("cloudnet-load-task-failed").replace("%path%", path.toString()));
                     }
@@ -117,7 +121,7 @@ final class DefaultCloudServiceManagerConfiguration {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                     String name = file.getFileName().toString();
-                    if (tasks.stream().noneMatch(serviceTask -> (serviceTask.getName() + ".json").equalsIgnoreCase(name))) {
+                    if (DefaultCloudServiceManagerConfiguration.this.tasks.stream().noneMatch(serviceTask -> (serviceTask.getName() + ".json").equalsIgnoreCase(name))) {
                         Files.delete(file);
                     }
                     return FileVisitResult.CONTINUE;

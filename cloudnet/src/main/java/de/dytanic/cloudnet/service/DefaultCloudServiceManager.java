@@ -43,7 +43,7 @@ public final class DefaultCloudServiceManager implements ICloudServiceManager {
 
     @Override
     public List<ServiceTask> getServiceTasks() {
-        return config.getTasks();
+        return this.config.getTasks();
     }
 
     @Override
@@ -88,7 +88,7 @@ public final class DefaultCloudServiceManager implements ICloudServiceManager {
         CloudNetDriver.getInstance().getEventManager().callEvent(serviceTaskAddEvent);
 
         if (!serviceTaskAddEvent.isCancelled()) {
-            if (isTaskPresent(task.getName())) {
+            if (this.isTaskPresent(task.getName())) {
                 this.config.getTasks().stream().filter(serviceTask -> serviceTask.getName().equalsIgnoreCase(task.getName())).findFirst()
                         .ifPresent(this.config.getTasks()::remove);
             }
@@ -283,7 +283,7 @@ public final class DefaultCloudServiceManager implements ICloudServiceManager {
             return null;
         }
 
-        serviceConfiguration.setPort(checkAndReplacePort(serviceConfiguration.getPort()));
+        serviceConfiguration.setPort(this.checkAndReplacePort(serviceConfiguration.getPort()));
 
         ICloudService cloudService = null;
 
