@@ -5,14 +5,18 @@ import de.dytanic.cloudnet.common.document.gson.JsonDocument;
 import de.dytanic.cloudnet.driver.CloudNetDriver;
 import de.dytanic.cloudnet.driver.network.HostAndPort;
 import de.dytanic.cloudnet.driver.service.ServiceInfoSnapshot;
-import de.dytanic.cloudnet.ext.bridge.player.*;
+import de.dytanic.cloudnet.ext.bridge.player.NetworkConnectionInfo;
+import de.dytanic.cloudnet.ext.bridge.player.NetworkPlayerServerInfo;
+import de.dytanic.cloudnet.ext.bridge.player.NetworkServiceInfo;
 import de.dytanic.cloudnet.ext.bridge.proxy.BridgeProxyHelper;
 import de.dytanic.cloudnet.wrapper.Wrapper;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 @UnsafeClass
 public final class BridgeHelper {
@@ -35,12 +39,19 @@ public final class BridgeHelper {
         Wrapper.getInstance().publishServiceInfoUpdate();
     }
 
-    public static void sendChannelMessageProxyLoginRequest(NetworkConnectionInfo networkConnectionInfo) {
-        CloudNetDriver.getInstance().getMessenger().sendChannelMessage(
-                BridgeConstants.BRIDGE_CUSTOM_CHANNEL_MESSAGING_CHANNEL,
-                BridgeConstants.BRIDGE_EVENT_CHANNEL_MESSAGE_NAME_PROXY_LOGIN_REQUEST,
-                new JsonDocument("networkConnectionInfo", networkConnectionInfo)
-        );
+    public static JsonDocument sendChannelMessageProxyLoginRequest(NetworkConnectionInfo networkConnectionInfo) {
+        try {
+            return CloudNetDriver.getInstance().getPacketQueryProvider().sendCallablePacket(
+                    CloudNetDriver.getInstance().getNetworkClient().getChannels().iterator().next(),
+                    BridgeConstants.BRIDGE_CUSTOM_CHANNEL_MESSAGING_CHANNEL,
+                    BridgeConstants.BRIDGE_EVENT_CHANNEL_MESSAGE_NAME_PROXY_LOGIN_REQUEST,
+                    new JsonDocument("networkConnectionInfo", networkConnectionInfo),
+                    Function.identity()
+            ).get(5, TimeUnit.SECONDS);
+        } catch (InterruptedException | ExecutionException | TimeoutException exception) {
+            exception.printStackTrace();
+        }
+        return null;
     }
 
     public static void sendChannelMessageProxyLoginSuccess(NetworkConnectionInfo networkConnectionInfo) {
@@ -115,33 +126,6 @@ public final class BridgeHelper {
             NetworkServiceInfo networkServiceInfo
     ) {
         return new NetworkConnectionInfo(uniqueId, name, version, userAddress, listener, onlineMode, legacy, networkServiceInfo);
-    }
-
-    public static boolean playerIsOnProxy(UUID uuid, String playerAddress) {
-        ICloudPlayer cloudPlayer = CloudNetDriver.getInstance().getServicesRegistry().getFirstService(IPlayerManager.class).getOnlinePlayer(uuid);
-
-        // checking if the player is on a proxy managed by CloudNet
-        if (cloudPlayer != null && cloudPlayer.getLoginService() != null) {
-            ServiceInfoSnapshot proxyService = Wrapper.getInstance().getCloudServiceProvider().getCloudService(cloudPlayer.getLoginService().getUniqueId());
-            if (proxyService != null) {
-                try {
-                    InetAddress proxyAddress = InetAddress.getByName(proxyService.getAddress().getHost());
-
-                    if (proxyAddress.isLoopbackAddress() || proxyAddress.isAnyLocalAddress()) {
-                        Wrapper.getInstance().getLogger().warning("OnlyProxyProtection was disabled because it's not clear on which host your proxy is running. "
-                                + "Please set a remote address by changing the 'hostAddress' property in the config.json of the node the proxy is running on.");
-                        return true;
-                    }
-
-                    return playerAddress.equals(proxyAddress.getHostAddress());
-
-                } catch (UnknownHostException exception) {
-                    exception.printStackTrace();
-                }
-            }
-        }
-
-        return false;
     }
 
     public static void changeToIngame(Consumer<String> stateChanger) {

@@ -1,9 +1,15 @@
 package eu.cloudnetservice.cloudnet.ext.npcs.bukkit.listener;
 
 
+import com.comphenix.protocol.wrappers.EnumWrappers;
 import com.github.juliarn.npc.event.PlayerNPCInteractEvent;
+import de.dytanic.cloudnet.common.collection.Pair;
 import de.dytanic.cloudnet.driver.CloudNetDriver;
+import de.dytanic.cloudnet.driver.service.ServiceInfoSnapshot;
+import de.dytanic.cloudnet.ext.bridge.BridgeServiceProperty;
 import de.dytanic.cloudnet.ext.bridge.player.IPlayerManager;
+import eu.cloudnetservice.cloudnet.ext.npcs.CloudNPC;
+import eu.cloudnetservice.cloudnet.ext.npcs.NPCAction;
 import eu.cloudnetservice.cloudnet.ext.npcs.bukkit.BukkitNPCManagement;
 import eu.cloudnetservice.cloudnet.ext.npcs.bukkit.BukkitNPCProperties;
 import org.bukkit.entity.Player;
@@ -14,6 +20,7 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class NPCInventoryListener implements Listener {
 
@@ -34,22 +41,61 @@ public class NPCInventoryListener implements Listener {
         Player player = event.getPlayer();
         int entityId = event.getNPC().getEntityId();
 
-        BukkitNPCProperties properties = this.propertiesCache.computeIfAbsent(entityId, key -> this.npcManagement.getNPCProperties().stream()
+        BukkitNPCProperties properties = this.propertiesCache.computeIfAbsent(entityId, key -> this.npcManagement.getNPCProperties().values().stream()
                 .filter(npcProperty -> npcProperty.getEntityId() == key)
                 .findFirst()
                 .orElse(null));
 
         if (properties != null) {
-            if (event.getAction() == PlayerNPCInteractEvent.Action.RIGHT_CLICKED) {
-                player.openInventory(properties.getInventory());
-            } else {
-                List<String> serviceNames = new ArrayList<>(properties.getServerSlots().values());
+            CloudNPC cloudNPC = properties.getHolder();
 
-                if (serviceNames.size() > 0) {
-                    String randomServiceName = serviceNames.get(RANDOM.nextInt(serviceNames.size()));
-                    this.playerManager.getPlayerExecutor(player.getUniqueId()).connect(randomServiceName);
+            EnumWrappers.EntityUseAction action = event.getAction();
+
+            if (action == EnumWrappers.EntityUseAction.INTERACT_AT || action == EnumWrappers.EntityUseAction.ATTACK) {
+                NPCAction npcAction = action == EnumWrappers.EntityUseAction.INTERACT_AT
+                        ? cloudNPC.getRightClickAction()
+                        : cloudNPC.getLeftClickAction();
+
+                if (npcAction == NPCAction.OPEN_INVENTORY) {
+                    player.openInventory(properties.getInventory());
+                } else if (npcAction.name().startsWith("DIRECT")) {
+                    List<ServiceInfoSnapshot> services = this.npcManagement.filterNPCServices(cloudNPC).stream()
+                            .map(Pair::getFirst)
+                            .collect(Collectors.toList());
+
+                    if (services.size() > 0) {
+                        String targetServiceName = null;
+
+                        switch (npcAction) {
+                            case DIRECT_CONNECT_RANDOM:
+                                targetServiceName = services.get(RANDOM.nextInt(services.size())).getName();
+                                break;
+                            case DIRECT_CONNECT_LOWEST_PLAYERS:
+                                targetServiceName = services.stream()
+                                        .min(Comparator.comparingInt(
+                                                service -> service.getProperty(BridgeServiceProperty.ONLINE_COUNT).orElse(0)
+                                        ))
+                                        .map(ServiceInfoSnapshot::getName)
+                                        .orElse(null);
+                                break;
+                            case DIRECT_CONNECT_HIGHEST_PLAYERS:
+                                targetServiceName = services.stream()
+                                        .max(Comparator.comparingInt(
+                                                service -> service.getProperty(BridgeServiceProperty.ONLINE_COUNT).orElse(0)
+                                        ))
+                                        .map(ServiceInfoSnapshot::getName)
+                                        .orElse(null);
+                                break;
+                        }
+
+                        if (targetServiceName != null) {
+                            this.playerManager.getPlayerExecutor(player.getUniqueId()).connect(targetServiceName);
+                        }
+                    }
                 }
             }
+
+
         }
     }
 
@@ -59,7 +105,7 @@ public class NPCInventoryListener implements Listener {
         ItemStack currentItem = event.getCurrentItem();
 
         if (inventory != null && currentItem != null && inventory.getHolder() == null && event.getWhoClicked() instanceof Player) {
-            this.npcManagement.getNPCProperties().stream()
+            this.npcManagement.getNPCProperties().values().stream()
                     .filter(properties -> properties.getInventory().equals(inventory))
                     .findFirst()
                     .ifPresent(properties -> {

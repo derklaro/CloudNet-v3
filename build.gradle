@@ -2,7 +2,7 @@ defaultTasks 'clean', 'build', 'test', 'jar'
 
 allprojects {
 
-    def major = 3, minor = 3, patch = 0, versionType = "SNAPSHOT"
+    def major = 3, minor = 3, patch = 0, versionType = "RELEASE"
 
     group 'de.dytanic.cloudnet'
     version "$major.$minor.$patch-$versionType"
@@ -12,12 +12,12 @@ allprojects {
         mavenCentral()
 
         maven {
-            name 'jitpack.io'
-            url 'https://jitpack.io'
+            url 'https://repo.dmulloy2.net/nexus/repository/public/'
         }
 
         maven {
-            url 'https://repo.dmulloy2.net/nexus/repository/public/'
+            name 'jitpack.io'
+            url 'https://jitpack.io'
         }
 
         maven {
@@ -28,11 +28,6 @@ allprojects {
         maven {
             name 'spigotmc-repo'
             url 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/'
-        }
-
-        maven {
-            name 'papermc'
-            url 'https://papermc.io/repo/repository/maven-public/'
         }
 
         maven {

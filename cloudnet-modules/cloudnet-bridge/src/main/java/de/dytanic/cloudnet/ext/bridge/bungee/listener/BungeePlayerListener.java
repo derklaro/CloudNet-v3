@@ -1,5 +1,6 @@
 package de.dytanic.cloudnet.ext.bridge.bungee.listener;
 
+import de.dytanic.cloudnet.common.document.gson.JsonDocument;
 import de.dytanic.cloudnet.driver.service.ServiceInfoSnapshot;
 import de.dytanic.cloudnet.ext.bridge.BridgeHelper;
 import de.dytanic.cloudnet.ext.bridge.bungee.BungeeCloudNetBridgePlugin;
@@ -7,6 +8,7 @@ import de.dytanic.cloudnet.ext.bridge.bungee.BungeeCloudNetHelper;
 import de.dytanic.cloudnet.ext.bridge.player.NetworkServiceInfo;
 import de.dytanic.cloudnet.ext.bridge.proxy.BridgeProxyHelper;
 import net.md_5.bungee.api.ProxyServer;
+import net.md_5.bungee.api.chat.TextComponent;
 import net.md_5.bungee.api.config.ServerInfo;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 import net.md_5.bungee.api.event.*;
@@ -25,7 +27,11 @@ public final class BungeePlayerListener implements Listener {
 
     @EventHandler
     public void handle(LoginEvent event) {
-        BridgeHelper.sendChannelMessageProxyLoginRequest(BungeeCloudNetHelper.createNetworkConnectionInfo(event.getConnection()));
+        JsonDocument response = BridgeHelper.sendChannelMessageProxyLoginRequest(BungeeCloudNetHelper.createNetworkConnectionInfo(event.getConnection()));
+        if (response != null && response.contains("kickReason")) {
+            event.setCancelled(true);
+            event.setCancelReason(TextComponent.fromLegacyText(response.getString("kickReason")));
+        }
     }
 
     @EventHandler
@@ -61,31 +67,27 @@ public final class BungeePlayerListener implements Listener {
                             serviceInfoSnapshot.getConfiguration().getGroups()
                     )
             );
-
-            try {
-                Thread.sleep(150);
-            } catch (InterruptedException exception) {
-                exception.printStackTrace();
-            }
         }
     }
 
     @EventHandler
     public void handle(ServerKickEvent event) {
-        ServerInfo kickFrom = event.getKickedFrom();
+        if (event.getPlayer().isConnected()) {
+            ServerInfo kickFrom = event.getKickedFrom();
 
-        if (kickFrom == null) {
-            event.getPlayer().disconnect(event.getKickReasonComponent());
-            event.setCancelled(true);
-            return;
+            if (kickFrom == null) {
+                event.getPlayer().disconnect(event.getKickReasonComponent());
+                event.setCancelled(true);
+                return;
+            }
+            BridgeProxyHelper.handleConnectionFailed(event.getPlayer().getUniqueId(), kickFrom.getName());
+
+            BungeeCloudNetHelper.getNextFallback(event.getPlayer()).ifPresent(serverInfo -> {
+                event.setCancelled(true);
+                event.setCancelServer(serverInfo);
+                event.getPlayer().sendMessage(event.getKickReasonComponent());
+            });
         }
-        BridgeProxyHelper.handleConnectionFailed(event.getPlayer().getUniqueId(), kickFrom.getName());
-
-        BungeeCloudNetHelper.getNextFallback(event.getPlayer()).ifPresent(serverInfo -> {
-            event.setCancelled(true);
-            event.setCancelServer(serverInfo);
-            event.getPlayer().sendMessage(event.getKickReasonComponent());
-        });
     }
 
     @EventHandler

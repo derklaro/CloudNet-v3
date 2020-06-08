@@ -148,7 +148,7 @@ public final class BungeeCloudNetListener {
             case "send_plugin_message_to_proxy_player": {
                 ProxiedPlayer proxiedPlayer = getPlayer(event.getData());
 
-                if (proxiedPlayer != null) {
+                if (proxiedPlayer != null && event.getData().contains("tag") && event.getData().contains("data")) {
                     String tag = event.getData().getString("tag");
                     byte[] data = Base64.getDecoder().decode(event.getData().getString("data"));
 
@@ -202,7 +202,7 @@ public final class BungeeCloudNetListener {
 
     @EventListener
     public void handle(BridgeProxyPlayerLoginRequestEvent event) {
-        this.bungeeCall(new BungeeBridgeProxyPlayerLoginSuccessEvent(event.getNetworkConnectionInfo()));
+        this.bungeeCall(new BungeeBridgeProxyPlayerLoginRequestEvent(event.getNetworkConnectionInfo()));
     }
 
     @EventListener

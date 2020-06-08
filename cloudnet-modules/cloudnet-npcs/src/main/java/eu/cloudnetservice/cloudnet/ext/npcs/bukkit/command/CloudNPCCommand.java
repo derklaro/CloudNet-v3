@@ -1,16 +1,15 @@
 package eu.cloudnetservice.cloudnet.ext.npcs.bukkit.command;
 
 
-import com.destroystokyo.paper.profile.PlayerProfile;
+import com.github.juliarn.npc.profile.Profile;
 import de.dytanic.cloudnet.driver.CloudNetDriver;
 import de.dytanic.cloudnet.driver.service.GroupConfiguration;
 import de.dytanic.cloudnet.ext.bridge.WorldPosition;
 import eu.cloudnetservice.cloudnet.ext.npcs.CloudNPC;
+import eu.cloudnetservice.cloudnet.ext.npcs.NPCAction;
 import eu.cloudnetservice.cloudnet.ext.npcs.bukkit.BukkitNPCManagement;
 import net.md_5.bungee.api.chat.BaseComponent;
-import net.md_5.bungee.api.chat.ClickEvent;
 import net.md_5.bungee.api.chat.ComponentBuilder;
-import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -25,8 +24,6 @@ import org.jetbrains.annotations.Nullable;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static net.md_5.bungee.api.chat.ClickEvent.Action.RUN_COMMAND;
-
 public class CloudNPCCommand implements CommandExecutor, TabCompleter {
 
     private static final Random RANDOM = new Random();
@@ -34,7 +31,8 @@ public class CloudNPCCommand implements CommandExecutor, TabCompleter {
     private static final String DEFAULT_INFO_LINE = "§8• §7%online_players% of %max_players% players online §8•";
 
     private static final List<String> EDIT_COMMAND_PROPERTIES = Arrays.asList(
-            "infoLine", "targetGroup", "skinOwnerName", "itemInHand", "shouldLookAtPlayer", "shouldImitatePlayer", "displayName"
+            "infoLine", "targetGroup", "skinOwnerName", "itemInHand", "shouldLookAtPlayer",
+            "shouldImitatePlayer", "displayName", "rightClickAction", "leftClickAction"
     );
 
     private final BukkitNPCManagement npcManagement;
@@ -56,7 +54,7 @@ public class CloudNPCCommand implements CommandExecutor, TabCompleter {
                 if (args[0].equalsIgnoreCase("remove")) {
                     this.removeNPC(player);
                 } else if (args[0].equalsIgnoreCase("list")) {
-                    this.listNPCs(sender);
+                    this.listNPCs(player);
                 } else if (args[0].equalsIgnoreCase("cleanup")) {
                     this.cleanupNPCs(sender);
                 } else {
@@ -82,7 +80,7 @@ public class CloudNPCCommand implements CommandExecutor, TabCompleter {
         boolean lookAtPlayer = args[4].equalsIgnoreCase("true") || args[4].equalsIgnoreCase("yes");
         boolean imitatePlayer = args[5].equalsIgnoreCase("true") || args[5].equalsIgnoreCase("yes");
 
-        PlayerProfile skinProfile = Bukkit.createProfile(args[2]);
+        Profile skinProfile = new Profile(args[2]);
         if (!skinProfile.complete()) {
             player.sendMessage(this.npcManagement.getNPCConfiguration().getMessages().get("command-create-texture-fetch-fail"));
             return;
@@ -144,7 +142,7 @@ public class CloudNPCCommand implements CommandExecutor, TabCompleter {
                     break;
                 }
                 case "skinownername": {
-                    PlayerProfile skinProfile = Bukkit.createProfile(value.split(" ")[0]);
+                    Profile skinProfile = new Profile(value.split(" ")[0]);
                     if (!skinProfile.complete()) {
                         player.sendMessage(this.npcManagement.getNPCConfiguration().getMessages().get("command-create-texture-fetch-fail"));
                         return;
@@ -182,6 +180,28 @@ public class CloudNPCCommand implements CommandExecutor, TabCompleter {
                     cloudNPC.setDisplayName(value);
                     break;
                 }
+                case "rightclickaction": {
+                    try {
+                        NPCAction action = NPCAction.valueOf(value.toUpperCase());
+                        cloudNPC.setRightClickAction(action);
+                    } catch (Exception exception) {
+                        player.sendMessage(this.npcManagement.getNPCConfiguration().getMessages().get("command-edit-invalid-action"));
+                        return;
+                    }
+
+                    break;
+                }
+                case "leftclickaction": {
+                    try {
+                        NPCAction action = NPCAction.valueOf(value.toUpperCase());
+                        cloudNPC.setLeftClickAction(action);
+                    } catch (Exception exception) {
+                        player.sendMessage(this.npcManagement.getNPCConfiguration().getMessages().get("command-edit-invalid-action"));
+                        return;
+                    }
+
+                    break;
+                }
                 default: {
                     this.sendHelp(player);
                     break;
@@ -216,7 +236,7 @@ public class CloudNPCCommand implements CommandExecutor, TabCompleter {
         return optionalCloudNPC;
     }
 
-    private void listNPCs(CommandSender sender) {
+    private void listNPCs(Player player) {
         for (CloudNPC cloudNPC : this.npcManagement.getCloudNPCS()) {
             WorldPosition position = cloudNPC.getPosition();
 
@@ -225,13 +245,9 @@ public class CloudNPCCommand implements CommandExecutor, TabCompleter {
             BaseComponent[] textComponent = new ComponentBuilder(String.format(
                     "§8> %s §8- §7%d, %d, %d §8- §7%s",
                     cloudNPC.getDisplayName(), x, y, z, position.getWorld()
-            )).append(
-                    new ComponentBuilder(" [§7Teleport§f]")
-                            .event(new ClickEvent(RUN_COMMAND, String.format("/tp %d %d %d", x, y, z)))
-                            .create()
-            ).create();
+            )).create();
 
-            sender.sendMessage(textComponent);
+            player.spigot().sendMessage(textComponent);
         }
     }
 
@@ -282,10 +298,14 @@ public class CloudNPCCommand implements CommandExecutor, TabCompleter {
                             .collect(Collectors.toList());
                 } else if (editProperty.equalsIgnoreCase("itemInHand")) {
                     return Arrays.stream(Material.values())
-                            .map(Material::name)
+                            .map(Enum::name)
                             .collect(Collectors.toList());
                 } else if (editProperty.toLowerCase().startsWith("should")) {
                     return Arrays.asList("true", "false");
+                } else if (editProperty.toLowerCase().endsWith("action")) {
+                    return Arrays.stream(NPCAction.values())
+                            .map(Enum::name)
+                            .collect(Collectors.toList());
                 }
 
             }

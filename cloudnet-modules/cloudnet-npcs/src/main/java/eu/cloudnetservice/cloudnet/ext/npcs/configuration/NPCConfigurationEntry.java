@@ -42,6 +42,8 @@ public class NPCConfigurationEntry {
 
     private LabyModEmotes labyModEmotes = new LabyModEmotes();
 
+    private long npcTabListRemoveTicks = 40L;
+
     public NPCConfigurationEntry() {
         for (int i = 1; i < 10; i++) {
             this.inventoryLayout.put(i, new ItemLayout("BLACK_STAINED_GLASS_PANE", " ", new ArrayList<>()));
@@ -52,7 +54,7 @@ public class NPCConfigurationEntry {
         this.targetGroup = targetGroup;
     }
 
-    public NPCConfigurationEntry(String targetGroup, double infoLineDistance, int inventorySize, int startSlot, int endSlot, boolean showFullServices, ItemLayout onlineItem, ItemLayout emptyItem, ItemLayout fullItem, Map<Integer, ItemLayout> inventoryLayout, LabyModEmotes labyModEmotes) {
+    public NPCConfigurationEntry(String targetGroup, double infoLineDistance, int inventorySize, int startSlot, int endSlot, boolean showFullServices, ItemLayout onlineItem, ItemLayout emptyItem, ItemLayout fullItem, Map<Integer, ItemLayout> inventoryLayout, LabyModEmotes labyModEmotes, long npcTabListRemoveTicks) {
         this.targetGroup = targetGroup;
         this.infoLineDistance = infoLineDistance;
         this.inventorySize = inventorySize;
@@ -64,6 +66,7 @@ public class NPCConfigurationEntry {
         this.fullItem = fullItem;
         this.inventoryLayout = inventoryLayout;
         this.labyModEmotes = labyModEmotes;
+        this.npcTabListRemoveTicks = npcTabListRemoveTicks;
     }
 
     public String getTargetGroup() {
@@ -150,10 +153,20 @@ public class NPCConfigurationEntry {
         this.labyModEmotes = labyModEmotes;
     }
 
+    public long getNPCTabListRemoveTicks() {
+        return npcTabListRemoveTicks;
+    }
+
+    public void setNPCTabListRemoveTicks(long npcTabListRemoveTicks) {
+        this.npcTabListRemoveTicks = npcTabListRemoveTicks;
+    }
+
     public static class LabyModEmotes {
 
         // See https://docs.labymod.net/pages/server/emote_api/ for all available emote ids.
         private int[] emoteIds = new int[]{2, 3, 49};
+
+        private int[] onJoinEmoteIds = new int[]{4, 20};
 
         private long minEmoteDelayTicks = 20 * 20;
 
@@ -170,6 +183,14 @@ public class NPCConfigurationEntry {
 
         public void setEmoteIds(int[] emoteIds) {
             this.emoteIds = emoteIds;
+        }
+
+        public int[] getOnJoinEmoteIds() {
+            return onJoinEmoteIds;
+        }
+
+        public void setOnJoinEmoteIds(int[] onJoinEmoteIds) {
+            this.onJoinEmoteIds = onJoinEmoteIds;
         }
 
         public long getMinEmoteDelayTicks() {
@@ -200,11 +221,16 @@ public class NPCConfigurationEntry {
 
     public static class ItemLayout {
 
-        private final String material;
+        private String material;
 
-        private final String displayName;
+        private int subId = -1;
 
-        private final List<String> lore;
+        private String displayName;
+
+        private List<String> lore;
+
+        public ItemLayout() {
+        }
 
         public ItemLayout(String material, String displayName, List<String> lore) {
             this.material = material;
@@ -216,12 +242,32 @@ public class NPCConfigurationEntry {
             return material;
         }
 
+        public void setMaterial(String material) {
+            this.material = material;
+        }
+
+        public int getSubId() {
+            return subId;
+        }
+
+        public void setSubId(int subId) {
+            this.subId = subId;
+        }
+
         public String getDisplayName() {
             return displayName;
         }
 
+        public void setDisplayName(String displayName) {
+            this.displayName = displayName;
+        }
+
         public List<String> getLore() {
             return lore;
+        }
+
+        public void setLore(List<String> lore) {
+            this.lore = lore;
         }
 
     }
