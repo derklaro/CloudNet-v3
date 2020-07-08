@@ -1,7 +1,6 @@
 package de.dytanic.cloudnet.permission;
 
 import de.dytanic.cloudnet.CloudNet;
-import de.dytanic.cloudnet.common.concurrent.ITaskListener;
 import de.dytanic.cloudnet.driver.CloudNetDriver;
 import de.dytanic.cloudnet.driver.event.events.permission.*;
 import de.dytanic.cloudnet.driver.network.def.packet.PacketServerUpdatePermissions;
@@ -36,7 +35,7 @@ public final class DefaultPermissionManagementHandler implements IPermissionMana
     @Override
     public void handleSetUsers(IPermissionManagement permissionManagement, Collection<? extends IPermissionUser> users) {
         CloudNetDriver.getInstance().getEventManager().callEvent(new PermissionSetUsersEvent(permissionManagement, users));
-        this.sendAll(new PacketServerUpdatePermissions(PacketServerUpdatePermissions.UpdateType.SET_USERS, users));
+        this.sendAll(PacketServerUpdatePermissions.setUsers(users));
     }
 
     @Override
@@ -60,15 +59,15 @@ public final class DefaultPermissionManagementHandler implements IPermissionMana
     @Override
     public void handleSetGroups(IPermissionManagement permissionManagement, Collection<? extends IPermissionGroup> groups) {
         CloudNetDriver.getInstance().getEventManager().callEvent(new PermissionSetGroupsEvent(permissionManagement, groups));
-        this.sendAll(new PacketServerUpdatePermissions(PacketServerUpdatePermissions.UpdateType.SET_GROUPS, groups));
+        this.sendAll(PacketServerUpdatePermissions.setGroups(groups));
     }
 
     @Override
     public void handleReloaded(IPermissionManagement permissionManagement) {
-        this.sendAll(new PacketServerUpdatePermissions(PacketServerUpdatePermissions.UpdateType.SET_GROUPS, permissionManagement.getGroups()));
+        this.sendAll(PacketServerUpdatePermissions.setGroups(permissionManagement.getGroups()));
     }
 
     private void sendAll(IPacket packet) {
-        CloudNet.getInstance().sendAllAsync(packet).addListener(ITaskListener.FIRE_EXCEPTION_ON_FAILURE);
+        CloudNet.getInstance().sendAllAsync(packet).fireExceptionOnFailure();
     }
 }

@@ -1,28 +1,24 @@
 package de.dytanic.cloudnet.wrapper;
 
 import com.google.common.base.Preconditions;
-import com.google.gson.reflect.TypeToken;
 import de.dytanic.cloudnet.common.collection.Pair;
 import de.dytanic.cloudnet.common.concurrent.ITask;
-import de.dytanic.cloudnet.common.document.gson.JsonDocument;
 import de.dytanic.cloudnet.common.logging.ILogger;
 import de.dytanic.cloudnet.common.logging.LogLevel;
 import de.dytanic.cloudnet.driver.CloudNetDriver;
 import de.dytanic.cloudnet.driver.DriverEnvironment;
+import de.dytanic.cloudnet.driver.api.DriverAPIRequestType;
+import de.dytanic.cloudnet.driver.api.DriverAPIUser;
+import de.dytanic.cloudnet.driver.module.DefaultModuleProviderHandler;
 import de.dytanic.cloudnet.driver.module.IModuleWrapper;
 import de.dytanic.cloudnet.driver.network.INetworkChannel;
 import de.dytanic.cloudnet.driver.network.INetworkClient;
-import de.dytanic.cloudnet.driver.network.PacketQueryProvider;
 import de.dytanic.cloudnet.driver.network.def.PacketConstants;
 import de.dytanic.cloudnet.driver.network.def.packet.PacketServerSetGlobalLogLevel;
 import de.dytanic.cloudnet.driver.network.netty.NettyNetworkClient;
 import de.dytanic.cloudnet.driver.network.ssl.SSLConfiguration;
-import de.dytanic.cloudnet.driver.provider.CloudMessenger;
-import de.dytanic.cloudnet.driver.provider.GroupConfigurationProvider;
-import de.dytanic.cloudnet.driver.provider.NodeInfoProvider;
-import de.dytanic.cloudnet.driver.provider.ServiceTaskProvider;
-import de.dytanic.cloudnet.driver.provider.service.CloudServiceFactory;
-import de.dytanic.cloudnet.driver.provider.service.GeneralCloudServiceProvider;
+import de.dytanic.cloudnet.driver.provider.service.RemoteCloudServiceFactory;
+import de.dytanic.cloudnet.driver.provider.service.RemoteSpecificCloudServiceProvider;
 import de.dytanic.cloudnet.driver.provider.service.SpecificCloudServiceProvider;
 import de.dytanic.cloudnet.driver.service.*;
 import de.dytanic.cloudnet.wrapper.conf.DocumentWrapperConfiguration;
@@ -32,7 +28,6 @@ import de.dytanic.cloudnet.wrapper.database.defaults.DefaultWrapperDatabaseProvi
 import de.dytanic.cloudnet.wrapper.event.ApplicationPostStartEvent;
 import de.dytanic.cloudnet.wrapper.event.ApplicationPreStartEvent;
 import de.dytanic.cloudnet.wrapper.event.service.ServiceInfoSnapshotConfigureEvent;
-import de.dytanic.cloudnet.wrapper.module.WrapperModuleProviderHandler;
 import de.dytanic.cloudnet.wrapper.network.NetworkClientChannelHandler;
 import de.dytanic.cloudnet.wrapper.network.listener.*;
 import de.dytanic.cloudnet.wrapper.network.packet.PacketClientServiceInfoUpdate;
@@ -41,9 +36,7 @@ import de.dytanic.cloudnet.wrapper.provider.WrapperGroupConfigurationProvider;
 import de.dytanic.cloudnet.wrapper.provider.WrapperMessenger;
 import de.dytanic.cloudnet.wrapper.provider.WrapperNodeInfoProvider;
 import de.dytanic.cloudnet.wrapper.provider.WrapperServiceTaskProvider;
-import de.dytanic.cloudnet.wrapper.provider.service.WrapperCloudServiceFactory;
 import de.dytanic.cloudnet.wrapper.provider.service.WrapperGeneralCloudServiceProvider;
-import de.dytanic.cloudnet.wrapper.provider.service.WrapperSpecificCloudServiceProvider;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 
@@ -53,9 +46,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -65,7 +56,7 @@ import java.util.concurrent.locks.ReentrantLock;
  *
  * @see CloudNetDriver
  */
-public final class Wrapper extends CloudNetDriver {
+public final class Wrapper extends CloudNetDriver implements DriverAPIUser {
     /**
      * The configuration of the wrapper, which was created from the CloudNet node.
      * The properties are mirrored from the configuration file.
@@ -83,13 +74,6 @@ public final class Wrapper extends CloudNetDriver {
      * The commandline arguments from the main() method of Main class by the application wrapper
      */
     private final List<String> commandLineArguments;
-
-    private final CloudServiceFactory cloudServiceFactory = new WrapperCloudServiceFactory(this);
-    private final GeneralCloudServiceProvider generalCloudServiceProvider = new WrapperGeneralCloudServiceProvider(this);
-    private final ServiceTaskProvider serviceTaskProvider = new WrapperServiceTaskProvider(this);
-    private final GroupConfigurationProvider groupConfigurationProvider = new WrapperGroupConfigurationProvider(this);
-    private final NodeInfoProvider nodeInfoProvider = new WrapperNodeInfoProvider(this);
-    private final CloudMessenger messenger = new WrapperMessenger(this);
 
     /**
      * CloudNetDriver.getNetworkClient()
@@ -114,6 +98,13 @@ public final class Wrapper extends CloudNetDriver {
         super(logger);
         setInstance(this);
 
+        super.cloudServiceFactory = new RemoteCloudServiceFactory(this::getNetworkChannel);
+        super.generalCloudServiceProvider = new WrapperGeneralCloudServiceProvider(this);
+        super.serviceTaskProvider = new WrapperServiceTaskProvider(this);
+        super.groupConfigurationProvider = new WrapperGroupConfigurationProvider(this);
+        super.nodeInfoProvider = new WrapperNodeInfoProvider(this);
+        super.messenger = new WrapperMessenger(this);
+
         this.commandLineArguments = commandLineArguments;
 
         if (this.config.getSslConfig().getBoolean("enabled")) {
@@ -132,23 +123,21 @@ public final class Wrapper extends CloudNetDriver {
         } else {
             this.networkClient = new NettyNetworkClient(NetworkClientChannelHandler::new);
         }
-        super.packetQueryProvider = new PacketQueryProvider(this.networkClient);
 
-        super.setPermissionManagement(new WrapperPermissionManagement(super.packetQueryProvider, this));
+        super.setPermissionManagement(new WrapperPermissionManagement(this));
 
         //- Packet client registry
-        this.networkClient.getPacketRegistry().addListener(PacketConstants.INTERNAL_EVENTBUS_CHANNEL, new PacketServerServiceInfoPublisherListener());
-        this.networkClient.getPacketRegistry().addListener(PacketConstants.INTERNAL_EVENTBUS_CHANNEL, new PacketServerUpdatePermissionsListener());
-        this.networkClient.getPacketRegistry().addListener(PacketConstants.INTERNAL_EVENTBUS_CHANNEL, new PacketServerChannelMessageListener());
-        this.networkClient.getPacketRegistry().addListener(PacketConstants.INTERNAL_CLUSTER_CHANNEL, new PacketServerClusterNodeInfoUpdateListener());
+        this.networkClient.getPacketRegistry().addListener(PacketConstants.SERVICE_INFO_PUBLISH_CHANNEL, new PacketServerServiceInfoPublisherListener());
+        this.networkClient.getPacketRegistry().addListener(PacketConstants.PERMISSIONS_PUBLISH_CHANNEL, new PacketServerUpdatePermissionsListener());
+        this.networkClient.getPacketRegistry().addListener(PacketConstants.CHANNEL_MESSAGING_CHANNEL, new PacketServerChannelMessageListener());
 
         this.networkClient.getPacketRegistry().addListener(PacketConstants.INTERNAL_DEBUGGING_CHANNEL, new PacketServerSetGlobalLogLevelListener());
 
-        this.networkClient.getPacketRegistry().addListener(PacketConstants.INTERNAL_CALLABLE_CHANNEL, new PacketClientWrapperSyncListener());
+        this.networkClient.getPacketRegistry().addListener(PacketConstants.INTERNAL_DRIVER_API_CHANNEL, new PacketServerWrapperDriverAPIListener());
         //-
 
         this.moduleProvider.setModuleDirectory(new File(".wrapper/modules"));
-        this.moduleProvider.setModuleProviderHandler(new WrapperModuleProviderHandler());
+        this.moduleProvider.setModuleProviderHandler(new DefaultModuleProviderHandler());
         this.driverEnvironment = DriverEnvironment.WRAPPER;
     }
 
@@ -213,57 +202,20 @@ public final class Wrapper extends CloudNetDriver {
         return this.getServiceId().getName();
     }
 
-    @NotNull
-    @Override
-    public CloudServiceFactory getCloudServiceFactory() {
-        return this.cloudServiceFactory;
-    }
-
-    @NotNull
-    @Override
-    public ServiceTaskProvider getServiceTaskProvider() {
-        return this.serviceTaskProvider;
-    }
-
-    @NotNull
-    @Override
-    public NodeInfoProvider getNodeInfoProvider() {
-        return this.nodeInfoProvider;
-    }
-
-    @NotNull
-    @Override
-    public GroupConfigurationProvider getGroupConfigurationProvider() {
-        return this.groupConfigurationProvider;
-    }
-
     @Override
     public @NotNull SpecificCloudServiceProvider getCloudServiceProvider(@NotNull String name) {
-        return new WrapperSpecificCloudServiceProvider(this, name);
+        return new RemoteSpecificCloudServiceProvider(this.getNetworkChannel(), this.generalCloudServiceProvider, name);
     }
 
     @Override
     public @NotNull SpecificCloudServiceProvider getCloudServiceProvider(@NotNull UUID uniqueId) {
-        return new WrapperSpecificCloudServiceProvider(this, uniqueId);
+        return new RemoteSpecificCloudServiceProvider(this.getNetworkChannel(), this.generalCloudServiceProvider, uniqueId);
     }
 
     @Override
     public @NotNull SpecificCloudServiceProvider getCloudServiceProvider(@NotNull ServiceInfoSnapshot serviceInfoSnapshot) {
-        return new WrapperSpecificCloudServiceProvider(this, serviceInfoSnapshot);
+        return new RemoteSpecificCloudServiceProvider(this.getNetworkChannel(), serviceInfoSnapshot);
     }
-
-    @NotNull
-    @Override
-    public GeneralCloudServiceProvider getCloudServiceProvider() {
-        return this.generalCloudServiceProvider;
-    }
-
-    @NotNull
-    @Override
-    public CloudMessenger getMessenger() {
-        return this.messenger;
-    }
-
 
     /**
      * Application wrapper implementation of this method. See the full documentation at the
@@ -273,12 +225,7 @@ public final class Wrapper extends CloudNetDriver {
      */
     @Override
     public Collection<ServiceTemplate> getLocalTemplateStorageTemplates() {
-        try {
-            return this.getLocalTemplateStorageTemplatesAsync().get(5, TimeUnit.SECONDS);
-        } catch (InterruptedException | ExecutionException | TimeoutException exception) {
-            exception.printStackTrace();
-        }
-        return null;
+        return this.getLocalTemplateStorageTemplatesAsync().get(5, TimeUnit.SECONDS, null);
     }
 
     /**
@@ -291,12 +238,7 @@ public final class Wrapper extends CloudNetDriver {
     public Collection<ServiceTemplate> getTemplateStorageTemplates(@NotNull String serviceName) {
         Preconditions.checkNotNull(serviceName);
 
-        try {
-            return this.getTemplateStorageTemplatesAsync(serviceName).get(5, TimeUnit.SECONDS);
-        } catch (InterruptedException | ExecutionException | TimeoutException exception) {
-            exception.printStackTrace();
-        }
-        return null;
+        return this.getTemplateStorageTemplatesAsync(serviceName).get(5, TimeUnit.SECONDS, null);
     }
 
     @Override
@@ -320,12 +262,7 @@ public final class Wrapper extends CloudNetDriver {
         Preconditions.checkNotNull(uniqueId);
         Preconditions.checkNotNull(commandLine);
 
-        try {
-            return this.sendCommandLineAsPermissionUserAsync(uniqueId, commandLine).get(5, TimeUnit.SECONDS);
-        } catch (InterruptedException | ExecutionException | TimeoutException exception) {
-            exception.printStackTrace();
-        }
-        return null;
+        return this.sendCommandLineAsPermissionUserAsync(uniqueId, commandLine).get(5, TimeUnit.SECONDS, null);
     }
 
     /**
@@ -337,10 +274,7 @@ public final class Wrapper extends CloudNetDriver {
     @Override
     @NotNull
     public ITask<Collection<ServiceTemplate>> getLocalTemplateStorageTemplatesAsync() {
-        return this.getPacketQueryProvider().sendCallablePacketWithAsDriverSyncAPIWithNetworkConnector(
-                new JsonDocument(PacketConstants.SYNC_PACKET_ID_PROPERTY, "get_local_template_storage_templates"), null,
-                documentPair -> documentPair.getFirst().get("templates", new TypeToken<Collection<ServiceTemplate>>() {
-                }.getType()));
+        return this.getTemplateStorageTemplatesAsync("local");
     }
 
     /**
@@ -354,10 +288,11 @@ public final class Wrapper extends CloudNetDriver {
     public ITask<Collection<ServiceTemplate>> getTemplateStorageTemplatesAsync(@NotNull String serviceName) {
         Preconditions.checkNotNull(serviceName);
 
-        return this.getPacketQueryProvider().sendCallablePacketWithAsDriverSyncAPIWithNetworkConnector(
-                new JsonDocument(PacketConstants.SYNC_PACKET_ID_PROPERTY, "get_template_storage_templates").append("serviceName", serviceName), null,
-                documentPair -> documentPair.getFirst().get("templates", new TypeToken<Collection<ServiceTemplate>>() {
-                }.getType()));
+        return this.executeDriverAPIMethod(
+                DriverAPIRequestType.GET_TEMPLATE_STORAGE_TEMPLATES,
+                buffer -> buffer.writeString(serviceName),
+                packet -> packet.getBuffer().readObjectCollection(ServiceTemplate.class)
+        );
     }
 
     /**
@@ -372,10 +307,11 @@ public final class Wrapper extends CloudNetDriver {
         Preconditions.checkNotNull(uniqueId);
         Preconditions.checkNotNull(commandLine);
 
-        return this.getPacketQueryProvider().sendCallablePacketWithAsDriverSyncAPIWithNetworkConnector(
-                new JsonDocument(PacketConstants.SYNC_PACKET_ID_PROPERTY, "send_commandline_as_permission_user").append("uniqueId", uniqueId).append("commandLine", commandLine), null,
-                documentPair -> documentPair.getFirst().get("executionResponse", new TypeToken<Pair<Boolean, String[]>>() {
-                }.getType()));
+        return this.executeDriverAPIMethod(
+                DriverAPIRequestType.SEND_COMMAND_LINE_AS_PERMISSION_USER,
+                buffer -> buffer.writeUUID(uniqueId).writeString(commandLine),
+                packet -> new Pair<>(packet.getBuffer().readBoolean(), packet.getBuffer().readStringArray())
+        );
     }
 
 
@@ -406,7 +342,6 @@ public final class Wrapper extends CloudNetDriver {
     public ServiceInfoSnapshot createServiceInfoSnapshot() {
         return new ServiceInfoSnapshot(
                 System.currentTimeMillis(),
-                this.getServiceId(),
                 this.currentServiceInfoSnapshot.getAddress(),
                 this.networkClient.getConnectedTime(),
                 ServiceLifeCycle.RUNNING,
@@ -566,5 +501,10 @@ public final class Wrapper extends CloudNetDriver {
     public void setDatabaseProvider(@NotNull IDatabaseProvider databaseProvider) {
         Preconditions.checkNotNull(databaseProvider);
         this.databaseProvider = databaseProvider;
+    }
+
+    @Override
+    public INetworkChannel getNetworkChannel() {
+        return this.networkClient.getFirstChannel();
     }
 }

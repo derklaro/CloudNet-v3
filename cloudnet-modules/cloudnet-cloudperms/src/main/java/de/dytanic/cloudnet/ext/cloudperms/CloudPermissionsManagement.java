@@ -8,6 +8,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
+import java.util.function.Consumer;
 
 @Deprecated
 @ApiStatus.ScheduledForRemoval(inVersion = "3.5")
@@ -197,7 +198,7 @@ public class CloudPermissionsManagement implements IPermissionManagement, Cached
 
     @Override
     public void setUsers(@Nullable Collection<? extends IPermissionUser> users) {
-        wrapped.setUsers(users);
+        wrapped.setUsers(users == null ? Collections.emptyList() : users);
     }
 
     @Override
@@ -365,24 +366,6 @@ public class CloudPermissionsManagement implements IPermissionManagement, Cached
         return wrapped.setGroupsAsync(groups);
     }
 
-    /**
-     * @deprecated The wrapper itself checks the permissions for every group now
-     */
-    @Deprecated
-    @ApiStatus.ScheduledForRemoval(inVersion = "3.4")
-    public boolean hasPlayerPermission(IPermissionUser permissionUser, String perm) {
-        return this.hasPermission(permissionUser, perm);
-    }
-
-    /**
-     * @deprecated The wrapper itself checks the permissions for every group now
-     */
-    @Deprecated
-    @ApiStatus.ScheduledForRemoval(inVersion = "3.4")
-    public PermissionCheckResult getPlayerPermissionResult(IPermissionUser permissionUser, String perm) {
-        return this.getPermissionResult(permissionUser, perm);
-    }
-
     @Override
     public Map<UUID, IPermissionUser> getCachedPermissionUsers() {
         return this.wrapped instanceof CachedPermissionManagement ? ((CachedPermissionManagement) this.wrapped).getCachedPermissionUsers() : null;
@@ -392,4 +375,35 @@ public class CloudPermissionsManagement implements IPermissionManagement, Cached
     public Map<String, IPermissionGroup> getCachedPermissionGroups() {
         return this.wrapped instanceof CachedPermissionManagement ? ((CachedPermissionManagement) this.wrapped).getCachedPermissionGroups() : null;
     }
+
+    @Override
+    public IPermissionGroup modifyGroup(@NotNull String name, @NotNull Consumer<IPermissionGroup> modifier) {
+        return wrapped.modifyGroup(name, modifier);
+    }
+
+    @Override
+    public IPermissionUser modifyUser(@NotNull UUID uniqueId, @NotNull Consumer<IPermissionUser> modifier) {
+        return wrapped.modifyUser(uniqueId, modifier);
+    }
+
+    @Override
+    public List<IPermissionUser> modifyUsers(@NotNull String name, @NotNull Consumer<IPermissionUser> modifier) {
+        return wrapped.modifyUsers(name, modifier);
+    }
+
+    @Override
+    public ITask<IPermissionGroup> modifyGroupAsync(@NotNull String name, @NotNull Consumer<IPermissionGroup> modifier) {
+        return wrapped.modifyGroupAsync(name, modifier);
+    }
+
+    @Override
+    public ITask<IPermissionUser> modifyUserAsync(@NotNull UUID uniqueId, @NotNull Consumer<IPermissionUser> modifier) {
+        return wrapped.modifyUserAsync(uniqueId, modifier);
+    }
+
+    @Override
+    public ITask<List<IPermissionUser>> modifyUsersAsync(@NotNull String name, @NotNull Consumer<IPermissionUser> modifier) {
+        return wrapped.modifyUsersAsync(name, modifier);
+    }
+
 }

@@ -1,7 +1,6 @@
 package de.dytanic.cloudnet.ext.bridge.player;
 
 import de.dytanic.cloudnet.common.concurrent.ITask;
-import de.dytanic.cloudnet.common.concurrent.ListenableTask;
 import de.dytanic.cloudnet.driver.service.ServiceEnvironmentType;
 import de.dytanic.cloudnet.ext.bridge.player.executor.PlayerExecutor;
 import org.jetbrains.annotations.ApiStatus;
@@ -10,7 +9,6 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicReference;
 
 public interface IPlayerManager {
 
@@ -84,9 +82,31 @@ public interface IPlayerManager {
      * Gets a list of all online players on the whole network.
      *
      * @return a list containing all players that are online on the network
+     * @deprecated Replace with {@link #onlinePlayers()}
      */
     @NotNull
+    @Deprecated
     List<? extends ICloudPlayer> getOnlinePlayers();
+
+    /**
+     * Gets a PlayerProvider which returns a list of all online players on the whole network.
+     */
+    @NotNull
+    PlayerProvider onlinePlayers();
+
+    /**
+     * Gets a PlayerProvider which returns a list of all online players on a specific task.
+     *
+     * @return a list containing all players that are online on that task
+     */
+    @NotNull
+    PlayerProvider taskOnlinePlayers(@NotNull String task);
+
+    /**
+     * Gets a PlayerProvider which returns a list of all online players on a specific group.
+     */
+    @NotNull
+    PlayerProvider groupOnlinePlayers(@NotNull String group);
 
     /**
      * Gets a registered player by its UUID out of the cloud
@@ -177,12 +197,7 @@ public interface IPlayerManager {
      */
     @NotNull
     default ITask<ICloudPlayer> getFirstOnlinePlayerAsync(@NotNull String name) {
-        AtomicReference<ICloudPlayer> result = new AtomicReference<>();
-        ITask<ICloudPlayer> task = new ListenableTask<>(result::get);
-        this.getOnlinePlayersAsync(name)
-                .onComplete(players -> result.set(players.isEmpty() ? null : players.get(0)))
-                .onCancelled(listITask -> task.cancel(true));
-        return task;
+        return this.getOnlinePlayersAsync(name).map(players -> players.isEmpty() ? null : players.get(0));
     }
 
     /**
@@ -221,8 +236,10 @@ public interface IPlayerManager {
      * Gets a list of all online players on the whole network.
      *
      * @return a list containing all players that are online on the network
+     * @deprecated Replace with {@link #onlinePlayers()}
      */
     @NotNull
+    @Deprecated
     ITask<List<? extends ICloudPlayer>> getOnlinePlayersAsync();
 
     /**
@@ -255,12 +272,7 @@ public interface IPlayerManager {
      */
     @NotNull
     default ITask<ICloudOfflinePlayer> getFirstOfflinePlayerAsync(@NotNull String name) {
-        AtomicReference<ICloudOfflinePlayer> result = new AtomicReference<>();
-        ITask<ICloudOfflinePlayer> task = new ListenableTask<>(result::get);
-        this.getOfflinePlayersAsync(name)
-                .onComplete(players -> result.set(players.isEmpty() ? null : players.get(0)))
-                .onCancelled(listITask -> task.cancel(true));
-        return task;
+        return this.getOfflinePlayersAsync(name).map(players -> players.isEmpty() ? null : players.get(0));
     }
 
     /**
@@ -440,6 +452,6 @@ public interface IPlayerManager {
      * @param message    the message to be sent to all online players with the given permission
      * @param permission the permission to check for
      */
-    void broadcastMessage(@NotNull String message, @NotNull String permission);
+    void broadcastMessage(@NotNull String message, @Nullable String permission);
 
 }
